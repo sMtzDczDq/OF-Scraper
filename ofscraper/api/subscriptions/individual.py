@@ -49,8 +49,12 @@ async def get_subscription(accounts=None):
                 retries=constants.getattr("API_INDVIDIUAL_NUM_TRIES"),
                 wait_min=constants.getattr("OF_MIN_WAIT_API"),
                 wait_max=constants.getattr("OF_MAX_WAIT_API"),
+<<<<<<< HEAD
                             new_request_auth=True
 
+=======
+                new_request_auth=True,
+>>>>>>> 3.9
             ) as c:
                 out = await get_subscription_helper(c, accounts)
                 job_progress.remove_task(task1)

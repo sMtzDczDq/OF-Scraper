@@ -5,6 +5,7 @@ other filters
 import logging
 
 import ofscraper.utils.args.read as read_args
+from ofscraper.filters.models.helpers import trace_log_user
 
 
 def otherFilters(filterusername):
@@ -17,6 +18,7 @@ def otherFilters(filterusername):
                 filterusername,
             )
         )
-        log.debug(f"excluded username count: {len(filterusername)}")
+        log.debug(f"'excluded usernames' filter username count: {len(filterusername)}")
+        trace_log_user(filterusername, "Excluded usernames")
 
     return filterusername

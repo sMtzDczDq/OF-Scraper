@@ -1,4 +1,5 @@
 import json
+import pathlib
 from contextlib import contextmanager
 import pathlib
 
@@ -36,9 +37,16 @@ def config_context():
                     elif config_prompt == "reset":
                         config_file.make_config_original()
                     break
+<<<<<<< HEAD
                 except Exception as E:
+=======
+                except Exception:
+>>>>>>> 3.9
                     continue
             continue
         yield
         break
+<<<<<<< HEAD
         
+=======
+>>>>>>> 3.9

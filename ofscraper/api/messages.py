@@ -12,7 +12,6 @@ r"""
 """
 
 import asyncio
-import contextvars
 import logging
 import traceback
 
@@ -27,6 +26,11 @@ import ofscraper.utils.constants as constants
 import ofscraper.utils.progress as progress_utils
 import ofscraper.utils.settings as settings
 from ofscraper.utils.context.run_async import run
+from ofscraper.utils.logs.helpers import is_trace
+from ofscraper.db.operations_.messages import get_messages_post_info,get_youngest_message_date
+from ofscraper.db.operations_.media import get_messages_media
+
+
 
 log = logging.getLogger("shared")
 
@@ -36,7 +40,7 @@ async def get_messages_progress(model_id, username, forced_after=None, c=None):
     global after
 
     oldmessages = (
-        await operations.get_messages_post_info(model_id=model_id, username=username)
+        await get_messages_post_info(model_id=model_id, username=username)
         if not read_args.retriveArgs().no_cache
         else []
     )
@@ -59,7 +63,7 @@ async def get_messages(model_id, username, forced_after=None, c=None):
     global after
 
     oldmessages = (
-        await operations.get_messages_post_info(model_id=model_id, username=username)
+        await get_messages_post_info(model_id=model_id, username=username)
         if not read_args.retriveArgs().no_cache
         else []
     )
@@ -326,7 +330,6 @@ async def scrape_messages(
     await asyncio.sleep(1)
     try:
         async with c.requests_async(url=url) as r:
-
             task = (
                 job_progress.add_task(
                     f": Message ID-> {message_id if message_id else 'initial'}"
@@ -413,7 +416,7 @@ async def scrape_messages(
         log.traceback_(traceback.format_exc())
         raise E
     finally:
-        (job_progress.remove_task(task) if job_progress and task != None else None)
+        (job_progress.remove_task(task) if job_progress and task is not None else None)
 
 
 def get_individual_post(model_id, postid):
@@ -422,8 +425,7 @@ def get_individual_post(model_id, postid):
         retries=constants.getattr("API_INDVIDIUAL_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         with c.requests(
             url=constants.getattr("messageSPECIFIC").format(model_id, postid)
@@ -433,7 +435,7 @@ def get_individual_post(model_id, postid):
 
 
 async def get_after(model_id, username, forced_after=None):
-    if forced_after != None:
+    if forced_after is not None:
         return forced_after
     elif not settings.get_after_enabled():
         return 0
@@ -446,7 +448,7 @@ async def get_after(model_id, username, forced_after=None):
             "Used --after previously. Scraping all messages required to make sure content is not missing"
         )
         return 0
-    curr = await operations.get_messages_media(model_id=model_id, username=username)
+    curr = await get_messages_media(model_id=model_id, username=username)
     if len(curr) == 0:
         log.debug("Setting date to zero because database is empty")
         return 0
@@ -461,7 +463,7 @@ async def get_after(model_id, username, forced_after=None):
             "Using newest db date because,all downloads in db are marked as downloaded"
         )
         return arrow.get(
-            await operations.get_youngest_message_date(
+            await get_youngest_message_date(
                 model_id=model_id, username=username
             )
         ).float_timestamp
@@ -473,6 +475,8 @@ async def get_after(model_id, username, forced_after=None):
 
 
 def trace_log_task(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller
@@ -490,6 +494,8 @@ def trace_log_task(responseArray):
 
 
 def trace_log_old(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller

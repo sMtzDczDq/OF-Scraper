@@ -22,6 +22,10 @@ import ofscraper.utils.constants as constants
 import ofscraper.utils.progress as progress_utils
 import ofscraper.utils.settings as settings
 from ofscraper.utils.context.run_async import run
+from ofscraper.utils.logs.helpers import is_trace
+from ofscraper.db.operations_.posts import get_archived_post_info,get_youngest_archived_date
+from ofscraper.db.operations_.media import get_archived_media
+
 
 log = logging.getLogger("shared")
 
@@ -33,14 +37,14 @@ sem = None
 async def get_archived_posts_progress(model_id, username, forced_after=None, c=None):
 
     oldarchived = (
-        await operations.get_archived_post_info(model_id=model_id, username=username)
+        await get_archived_post_info(model_id=model_id, username=username)
         if not read_args.retriveArgs().no_cache
         else []
     )
     trace_log_old(oldarchived)
 
     log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
-    oldarchived = list(filter(lambda x: x != None, oldarchived))
+    oldarchived = list(filter(lambda x: x is not None, oldarchived))
     after = await get_after(model_id, username, forced_after)
     after_log(username, after)
     splitArrays = get_split_array(oldarchived, after)
@@ -53,14 +57,14 @@ async def get_archived_posts_progress(model_id, username, forced_after=None, c=N
 @run
 async def get_archived_posts(model_id, username, forced_after=None, c=None):
     oldarchived = (
-        await operations.get_archived_post_info(model_id=model_id, username=username)
+        await get_archived_post_info(model_id=model_id, username=username)
         if not read_args.retriveArgs().no_cache
         else []
     )
     trace_log_old(oldarchived)
 
     log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
-    oldarchived = list(filter(lambda x: x != None, oldarchived))
+    oldarchived = list(filter(lambda x: x is not None, oldarchived))
     after = await get_after(model_id, username, forced_after)
     after_log(username, after)
     with progress_utils.set_up_api_archived():
@@ -137,7 +141,7 @@ def get_split_array(oldarchived, after):
         constants.getattr("MIN_PAGE_POST_COUNT"),
     )
     log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
-    oldarchived = list(filter(lambda x: x != None, oldarchived))
+    oldarchived = list(filter(lambda x: x is not None, oldarchived))
     postsDataArray = sorted(oldarchived, key=lambda x: x.get("created_at"))
     filteredArray = list(filter(lambda x: x.get("created_at") >= after, postsDataArray))
 
@@ -236,7 +240,7 @@ def set_check(unduped, model_id, after):
 
 
 async def get_after(model_id, username, forced_after=None):
-    if forced_after != None:
+    if forced_after is not None:
         return forced_after
     elif not settings.get_after_enabled():
         return 0
@@ -250,7 +254,7 @@ async def get_after(model_id, username, forced_after=None):
             "Used --after previously. Scraping all archived posts required to make sure content is not missing"
         )
         return 0
-    curr = await operations.get_archived_media(model_id=model_id, username=username)
+    curr = await get_archived_media(model_id=model_id, username=username)
     if len(curr) == 0:
         log.debug("Setting date to zero because database is empty")
         return 0
@@ -261,7 +265,7 @@ async def get_after(model_id, username, forced_after=None):
             "Using newest db date because,all downloads in db marked as downloaded"
         )
         return arrow.get(
-            await operations.get_youngest_archived_date(
+            await get_youngest_archived_date(
                 model_id=model_id, username=username
             )
         ).float_timestamp
@@ -293,7 +297,7 @@ async def scrape_archived_posts(
     try:
         task = (
             job_progress.add_task(
-                f"Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp!=None  else 'initial'}",
+                f"Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
                 visible=True,
             )
             if job_progress
@@ -377,6 +381,8 @@ async def scrape_archived_posts(
 
 
 def trace_log_task(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller
@@ -394,6 +400,8 @@ def trace_log_task(responseArray):
 
 
 def trace_log_old(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller

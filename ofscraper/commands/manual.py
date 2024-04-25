@@ -18,6 +18,7 @@ import ofscraper.utils.args.write as write_args
 import ofscraper.utils.constants as constants
 import ofscraper.utils.context.stdout as stdout
 import ofscraper.utils.system.network as network
+from ofscraper.db.operations_.media import batch_mediainsert
 from ofscraper.utils.context.run_async import run
 
 
@@ -56,7 +57,7 @@ def manual_download(urls=None):
                 download.download_process(
                     username, model_id, value.get("media_list", []), posts=None
                 )
-                operations.batch_mediainsert(
+                batch_mediainsert(
                     value.get("media_list"), username=username, model_id=model_id
                 )
         except Exception as e:
@@ -182,7 +183,7 @@ def unknown_type_helper(postid):
 
 
 def get_post_item(model_id, value, responsetype=None):
-    if value == None:
+    if value is None:
         return []
     user_name = profile.scrape_profile(model_id)["username"]
     post = posts_.Post(value, model_id, user_name, responsetype=responsetype)
@@ -192,7 +193,7 @@ def get_post_item(model_id, value, responsetype=None):
 def get_all_media(posts_id, model_id, value, responsetype=None):
     value = value or {}
     media = []
-    if model_id == None:
+    if model_id is None:
         return {}
     user_name = profile.scrape_profile(model_id)["username"]
     post_item = posts_.Post(value, model_id, user_name, responsetype=responsetype)
@@ -221,8 +222,7 @@ async def paid_failback(post_id, model_id, username):
         retries=constants.getattr("API_CHECK_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         data = await paid.get_paid_posts(id, username, c=c) or []
         posts = list(

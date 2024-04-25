@@ -9,7 +9,7 @@ def get_current_config_schema(config: dict = None) -> dict:
         config = config["config"]
     new_config = {
         (
-            "main_profile" if config == False else constants.getattr("mainProfile")
+            "main_profile" if config is False else constants.getattr("mainProfile")
         ): data.get_main_profile(config=config),
         "metadata": data.get_metadata(config=config),
         "discord": data.get_discord(config=config),
@@ -18,7 +18,7 @@ def get_current_config_schema(config: dict = None) -> dict:
             "dir_format": data.get_dirformat(config=config),
             "file_format": data.get_fileformat(config=config),
             "textlength": data.get_textlength(config=config),
-            "space-replacer": data.get_spacereplacer(config=config),
+            "space_replacer": data.get_spacereplacer(config=config),
             "date": data.get_date(config=config),
             "text_type_default": data.get_textType(config=config),
             "truncation_default": data.get_truncation(config=config),
@@ -84,7 +84,7 @@ def get_current_config_schema(config: dict = None) -> dict:
 
 # basic recursion for comparing nested keys
 def config_diff(config, schema=None):
-    if config == None:
+    if config is None:
         return True
     if config.get("config"):
         config = config["config"]

@@ -31,7 +31,9 @@ import ofscraper.utils.constants as constants
 import ofscraper.utils.context.stdout as stdout
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.network as network
-from ofscraper.download.common.text import textDownloader
+from ofscraper.download.shared.utils.text import textDownloader
+from ofscraper.db.operations_.media import batch_mediainsert,get_media_ids_downloaded
+
 from ofscraper.utils.context.run_async import run
 
 log = logging.getLogger("shared")
@@ -56,6 +58,7 @@ ROW_NAMES = (
 ROWS = []
 app = None
 ALL_MEDIA = {}
+MEDIA_KEY = ["id", "postid", "username"]
 
 
 def process_download_cart():
@@ -66,7 +69,7 @@ def process_download_cart():
             continue
         try:
             process_item()
-        except Exception as E:
+        except Exception:
             # handle getting new downloads
             None
 
@@ -81,13 +84,19 @@ def process_item():
             log.info("cdm checker was fine\ncdm will not be check again\n\n")
     process_download_cart.counter = process_download_cart.counter + 1
     log.info("Getting items from cart")
-    for _ in range(0, 2):
+    try:
+        row, key = app.row_queue.get()
+    except Exception as E:
+        log.error(f"Error getting item from queue: {E}")
+        return
+    for count, _ in enumerate(range(0, 2)):
         try:
-            row, key = app.row_queue.get()
             username = row[app.row_names.index("UserName")].plain
             post_id = row[app.row_names.index("Post_ID")].plain
             media_id = int(row[app.row_names.index("Media_ID")].plain)
-            media = ALL_MEDIA.get(f"{media_id}_{post_id}_{username}")
+            media = ALL_MEDIA.get(
+                "_".join(map(lambda x: str(x), [media_id, post_id, username]))
+            )
             if not media:
                 raise Exception(f"No data for {media_id}_{post_id}_{username}")
             log.info(f"Added url {media.url or media.mpd}")
@@ -98,14 +107,14 @@ def process_item():
                 textDownloader(post, username=username)
             elif len(settings.get_mediatypes()) > 1:
                 model_id = media.post.model_id
-                username = model_id = media.post.username
+                username = media.post.username
                 log.info(
                     f"Downloading individual media ({media.filename}) to disk for {username}"
                 )
                 operations.table_init_create(model_id=model_id, username=username)
                 textDownloader(post, username=username)
                 values = downloadnormal.process_dicts(username, model_id, [media])
-                if values == None or values[-1] == 1:
+                if values is None or values[-1] == 1:
                     raise Exception("Download is marked as skipped")
             else:
                 raise Exception("Issue getting download")
@@ -113,19 +122,21 @@ def process_item():
             log.info("Download Finished")
             app.update_cell(key, "Download_Cart", "[downloaded]")
             app.update_cell(key, "Downloaded", True)
+            break
         except Exception as E:
-            app.row_queue.put((row,key))
-            data_refill(media_id,post_id,username.model_id)
+            if count == 1:
+                app.update_cell(key, "Download_Cart", "[failed]")
+                raise E
+            log.info("Download Failed Refreshing data")
+            data_refill(media_id, post_id, username, model_id)
             log.traceback_(E)
             log.traceback_(traceback.format_exc())
-            continue
-        break
     if app.row_queue.empty():
         log.info("Download cart is currently empty")
 
 
 @run
-async def data_refill(media_id, post_id, target_name,model_id):
+async def data_refill(media_id, post_id, target_name, model_id):
     args = read_args.retriveArgs()
     if args.command == "msg_check":
         reset_message_set(model_id)
@@ -186,8 +197,7 @@ async def post_check_retriver():
         retries=constants.getattr("API_CHECK_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         for ele in links:
             name_match = re.search(
@@ -350,8 +360,7 @@ async def message_check_retriver():
         retries=constants.getattr("API_CHECK_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         for item in links:
             num_match = re.search(
@@ -393,7 +402,7 @@ async def message_check_retriver():
                     message_posts_array, model_id=model_id, username=user_name
                 )
 
-                oldpaid = cache.get(f"purchased_check_{model_id}", default=[])
+                oldpaid = cache.get(f"purchased_check_{model_id}", default=[]) or []
                 paid = None
                 # paid content
                 if len(oldpaid) > 0 and not read_args.retriveArgs().force:
@@ -439,8 +448,7 @@ async def purchase_check_retriver():
         retries=constants.getattr("API_CHECK_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         for name in read_args.retriveArgs().check_usernames:
             user_name = profile.scrape_profile(name)["username"]
@@ -455,7 +463,7 @@ async def purchase_check_retriver():
             if len(oldpaid) > 0 and not read_args.retriveArgs().force:
                 paid = oldpaid
             elif user_name == constants.getattr("DELETED_MODEL_PLACEHOLDER"):
-                paid_user_dict  = await paid_.get_all_paid_posts()
+                paid_user_dict = await paid_.get_all_paid_posts()
                 seen = set()
                 paid = [
                     post
@@ -499,8 +507,7 @@ async def stories_check_retriver():
         retries=constants.getattr("API_CHECK_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         for user_name in read_args.retriveArgs().check_usernames:
             user_name = profile.scrape_profile(user_name)["username"]
@@ -549,13 +556,15 @@ async def process_post_media(username, model_id, posts_array):
     ]
     temp = []
     [temp.extend(ele.all_media) for ele in unduped]
-    await operations.batch_mediainsert(
+    await batch_mediainsert(
         temp,
         model_id=model_id,
         username=username,
         downloaded=False,
     )
-    new_media = {f"{ele.id}_{ele.postid}_{ele.username}": ele for ele in temp}
+    new_media = {
+        "_".join([str(getattr(ele, key)) for key in MEDIA_KEY]): ele for ele in temp
+    }
     ALL_MEDIA.update(new_media)
     return list(new_media.values())
 
@@ -568,7 +577,7 @@ async def get_downloaded(user_name, model_id, paid=False):
     paid = await get_paid_ids(model_id, user_name) if paid else []
     [
         downloaded.update({ele: downloaded.get(ele, 0) + 1})
-        for ele in operations.get_media_ids_downloaded(
+        for ele in get_media_ids_downloaded(
             model_id=model_id, username=user_name
         )
         + paid
@@ -591,8 +600,7 @@ async def get_paid_ids(model_id, user_name):
             retries=constants.getattr("API_CHECK_NUM_TRIES"),
             wait_min=constants.getattr("OF_MIN_WAIT_API"),
             wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                        new_request_auth=True
-
+            new_request_auth=True,
         ) as c:
             paid = await paid_.get_paid_posts(model_id, user_name, c=c)
             cache.set(
@@ -601,7 +609,7 @@ async def get_paid_ids(model_id, user_name):
                 expire=constants.getattr("THREE_DAY_SECONDS"),
             )
     media = await process_post_media(user_name, model_id, paid)
-    media = list(filter(lambda x: x.canview == True, media))
+    media = list(filter(lambda x: x.canview is True, media))
     return list(map(lambda x: x.id, media))
 
 
@@ -685,8 +693,8 @@ async def row_gather(username, model_id, paid=False):
                 checkmarkhelper(ele),
                 username,
                 ele.id in downloaded
-                or cache.get(ele.postid) != None
-                or cache.get(ele.filename) != None,
+                or cache.get(ele.postid) is not None
+                or cache.get(ele.filename) is not None,
                 unlocked_helper(ele),
                 times_helper(ele, mediadict, downloaded),
                 ele.numeric_duration,
@@ -703,36 +711,21 @@ async def row_gather(username, model_id, paid=False):
     ROWS = ROWS or []
     ROWS.extend(out)
 
+
 def reset_time_line_cache(model_id):
-    cache.set(
-        f"timeline_check_{model_id}",None
-    )
-    cache.set(
-        f"archived_check_{model_id}",None
-    )
-    cache.set(
-        f"labels_check_{model_id}",None
-    )
-    cache.set(
-        f"pinned_check_{model_id}",None
-    )
+    cache.set(f"timeline_check_{model_id}", [])
+    cache.set(f"archived_check_{model_id}", [])
+    cache.set(f"labels_check_{model_id}", [])
+    cache.set(f"pinned_check_{model_id}", [])
     cache.close()
+
 
 def reset_message_set(model_id):
-    cache.set(
-        f"message_check_{model_id}",None
-    )
-    cache.set(
-        f"purchased_check_{model_id}",None
-    )
+    cache.set(f"message_check_{model_id}", [])
+    cache.set(f"purchased_check_{model_id}", [])
     cache.close()
+
 
 def reset_paid_set(model_id):
-    cache.set(
-        f"purchased_check_{model_id}",None
-    )
+    cache.set(f"purchased_check_{model_id}", [])
     cache.close()
-
-def set_const_check_mode():
-    constants.setattr("DOWNLOAD_NUM_TRIES",constants.getattr("DOWNLOAD_RETRIES_NUM_TRIES"))
-    constants.setattr("DOWNLOAD_FILE_NUM_TRIES",constants.getattr("DOWNLOAD_FILE_NUM_TRIES_CHECK"))

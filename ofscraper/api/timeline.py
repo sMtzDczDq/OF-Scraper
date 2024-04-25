@@ -16,13 +16,16 @@ import arrow
 
 import ofscraper.api.common.logs as common_logs
 import ofscraper.classes.sessionmanager as sessionManager
-import ofscraper.db.operations as operations
 import ofscraper.utils.args.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.progress as progress_utils
 import ofscraper.utils.settings as settings
 from ofscraper.utils.context.run_async import run
+from ofscraper.utils.logs.helpers import is_trace
+from ofscraper.db.operations_.posts import get_timeline_posts_info,get_youngest_timeline_date
+from ofscraper.db.operations_.media import get_timeline_media
+
 
 log = logging.getLogger("shared")
 
@@ -42,7 +45,7 @@ async def get_timeline_posts_progress(model_id, username, forced_after=None, c=N
 @run
 async def get_timeline_posts(model_id, username, forced_after=None, c=None):
     if not read_args.retriveArgs().no_cache:
-        oldtimeline = await operations.get_timeline_posts_info(
+        oldtimeline = await get_timeline_posts_info(
             model_id=model_id, username=username
         )
     else:
@@ -50,7 +53,7 @@ async def get_timeline_posts(model_id, username, forced_after=None, c=None):
     trace_log_old(oldtimeline)
 
     log.debug(f"[bold]Timeline Cache[/bold] {len(oldtimeline)} found")
-    oldtimeline = list(filter(lambda x: x != None, oldtimeline))
+    oldtimeline = list(filter(lambda x: x is not None, oldtimeline))
     after = await get_after(model_id, username, forced_after)
     after_log(username, after)
 
@@ -120,7 +123,7 @@ async def process_tasks(tasks):
 
 async def get_oldtimeline(model_id, username):
     if not read_args.retriveArgs().no_cache:
-        oldtimeline = await operations.get_timeline_posts_info(
+        oldtimeline = await get_timeline_posts_info(
             model_id=model_id, username=username
         )
     else:
@@ -256,8 +259,7 @@ def get_individual_post(id):
         retries=constants.getattr("API_INDVIDIUAL_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         with c.requests(constants.getattr("INDIVIDUAL_TIMELINE").format(id)) as r:
             log.trace(f"post raw individual {r.json()}")
@@ -278,7 +280,7 @@ async def get_after(model_id, username, forced_after=None):
             "Used --after previously. Scraping all timeline posts required to make sure content is not missing"
         )
         return 0
-    curr = await operations.get_timeline_media(model_id=model_id, username=username)
+    curr = await get_timeline_media(model_id=model_id, username=username)
     if len(curr) == 0:
         log.debug("Setting oldest date to zero because database is empty")
         return 0
@@ -291,7 +293,7 @@ async def get_after(model_id, username, forced_after=None):
             "Using using newest db date, because all downloads in db marked as downloaded"
         )
         return arrow.get(
-            await operations.get_youngest_timeline_date(
+            await get_youngest_timeline_date(
                 model_id=model_id, username=username
             )
         ).float_timestamp
@@ -319,7 +321,7 @@ async def scrape_timeline_posts(
     try:
         task = (
             job_progress.add_task(
-                f"Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp!=None  else 'initial'}",
+                f"Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
                 visible=True,
             )
             if job_progress
@@ -328,7 +330,7 @@ async def scrape_timeline_posts(
 
         async with c.requests_async(url=url) as r:
             posts = (await r.json_())["list"]
-            log_id = f"timestamp:{arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp!=None  else 'initial'}"
+            log_id = f"timestamp:{arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}"
             if not bool(posts):
                 log.debug(f"{log_id} -> no posts found")
                 return [], []
@@ -402,10 +404,12 @@ async def scrape_timeline_posts(
         log.traceback_(traceback.format_exc())
         raise E
     finally:
-        job_progress.remove_task(task) if job_progress and task != None else None
+        job_progress.remove_task(task) if job_progress and task is not None else None
 
 
 def trace_log_task(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller
@@ -423,6 +427,8 @@ def trace_log_task(responseArray):
 
 
 def trace_log_old(responseArray):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller

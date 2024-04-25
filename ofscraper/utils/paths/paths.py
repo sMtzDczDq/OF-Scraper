@@ -51,10 +51,10 @@ def temp_cleanup():
             ]
         )
         for ele in roots:
-            if ele == None:
+            if ele is None:
                 continue
             for file in filter(
-                lambda x: re.search("\.part$|^temp_", str(x)) != None,
+                lambda x: re.search("\.part$|^temp_", str(x)) is not None,
                 pathlib.Path(ele).glob("**/*"),
             ):
                 file.unlink(missing_ok=True)
@@ -157,3 +157,10 @@ def cleanDB():
 
 def speed_file():
     return pathlib.Path(common_paths.get_profile_path() / "speed.zip")
+
+
+def get_all_db(path):
+    for ele in filter(
+        lambda x: re.search("user_data.db", str(x)), pathlib.Path(path).glob("**/*")
+    ):
+        yield ele

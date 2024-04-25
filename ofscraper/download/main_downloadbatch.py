@@ -1,4 +1,4 @@
-"""
+r"""
                                                              
  _______  _______         _______  _______  _______  _______  _______  _______  _______ 
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
@@ -17,20 +17,20 @@ import traceback
 from functools import partial
 
 import aiofiles
-from tenacity import AsyncRetrying, retry_if_not_exception_message, stop_after_attempt
 
 try:
     from win32_setctime import setctime  # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 import ofscraper.classes.placeholder as placeholder
-import ofscraper.download.common.common as common
-import ofscraper.download.common.globals as common_globals
+import ofscraper.download.shared.common.general as common
+import ofscraper.download.shared.globals as common_globals
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.system as system
-from ofscraper.download.common.common import (
+from ofscraper.download.shared.classes.retries import download_retry
+from ofscraper.download.shared.common.general import (
     check_forced_skip,
     downloadspace,
     get_data,
@@ -39,10 +39,9 @@ from ofscraper.download.common.common import (
     get_unknown_content_type,
     size_checker,
 )
-from ofscraper.download.common.log import get_url_log, path_to_file_logger
-from ofscraper.download.common.metadata import force_download
-from ofscraper.download.common.paths import addLocalDir, moveHelper, set_time
-from ofscraper.download.common.main_common import  handle_result_main
+from ofscraper.download.shared.common.main_common import handle_result_main
+from ofscraper.download.shared.utils.log import get_url_log, path_to_file_logger
+from ofscraper.download.shared.utils.metadata import force_download
 
 
 async def main_download(c, ele, username, model_id):
@@ -67,19 +66,12 @@ async def main_download(c, ele, username, model_id):
     return await handle_result_main(result, ele, username, model_id)
 
 
-
 async def main_download_downloader(c, ele):
     downloadspace(mediatype=ele.mediatype)
     tempholderObj = await placeholder.tempFilePlaceholder(
         ele, f"{await ele.final_filename}_{ele.id}.part"
     ).init()
-    async for _ in AsyncRetrying(
-        stop=stop_after_attempt(constants.getattr("DOWNLOAD_FILE_NUM_TRIES")),
-        retry=retry_if_not_exception_message(
-            constants.getattr("SPACE_DOWNLOAD_MESSAGE")
-        ),
-        reraise=True,
-    ):
+    async for _ in download_retry():
         with _:
             try:
                 common_globals.attempt.set(common_globals.attempt.get(0) + 1)
@@ -175,7 +167,7 @@ async def send_req_inner(c, ele, tempholderObj, placeholderObj=None, total=None)
         headers = (
             None
             if resume_size == 0 or not old_total
-            else {"Range": f"abytes={resume_size}-{total}"}
+            else {"Range": f"bytes={resume_size}-{total}"}
         )
         common_globals.log.debug(
             f"{get_medialog(ele)} [attempt {common_globals.attempt.get()}/{constants.getattr('DOWNLOAD_FILE_NUM_TRIES')}] Downloading media with url {ele.url}"

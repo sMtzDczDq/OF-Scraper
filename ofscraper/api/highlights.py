@@ -369,7 +369,7 @@ async def scrape_highlight_list(c, user_id, job_progress=None, offset=0) -> list
         raise E
 
     finally:
-        (job_progress.remove_task(task) if job_progress and task != None else None)
+        (job_progress.remove_task(task) if job_progress and task is not None else None)
 
     return data, new_tasks
 
@@ -403,7 +403,7 @@ async def scrape_highlights(c, id, job_progress=None) -> list:
         raise E
 
     finally:
-        (job_progress.remove_task(task) if job_progress and task != None else None)
+        (job_progress.remove_task(task) if job_progress and task is not None else None)
 
     return resp_data["stories"], new_tasks
 
@@ -415,7 +415,7 @@ def get_highlightList(data):
                 list(
                     filter(
                         lambda x: isinstance(x.get("id"), int)
-                        and data.get("hasMore") != None,
+                        and data.get("hasMore") is not None,
                         ele,
                     )
                 )
@@ -436,8 +436,7 @@ def get_individual_stories(id, c=None):
         retries=constants.getattr("API_INDVIDIUAL_NUM_TRIES"),
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
-        new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         with c.requests_async(constants.getattr("storiesSPECIFIC").format(id)) as r:
             log.trace(f"highlight raw highlight individua; {r.json_()}")

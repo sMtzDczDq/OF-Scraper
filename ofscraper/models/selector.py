@@ -63,7 +63,7 @@ def getselected_usernames(rescan=False, reset=False):
     # username list will be retrived every time resFet==True
     global ALL_SUBS
     global PARSED_SUBS
-    if reset == True and rescan == True:
+    if reset is True and rescan is True:
         all_subs_helper()
         parsed_subscriptions_helper(reset=True)
     elif reset is True and PARSED_SUBS:
@@ -76,7 +76,7 @@ def getselected_usernames(rescan=False, reset=False):
             parsed_subscriptions_helper()
         elif prompt == "Selection_Strict":
             parsed_subscriptions_helper(reset=True)
-    elif rescan == True:
+    elif rescan is True:
         all_subs_helper()
         parsed_subscriptions_helper()
     else:
@@ -86,11 +86,11 @@ def getselected_usernames(rescan=False, reset=False):
 
 
 @run
-async def set_data_all_subs_dict(usernames):
+async def set_data_all_subs_dict(username):
     args = read_args.retriveArgs()
     oldusernames = args.usernames or set()
     all_usernames = set()
-    all_usernames.update([usernames] if not isinstance(usernames, list) else usernames)
+    all_usernames.update([username] if not isinstance(username, list) else username)
     all_usernames.update(oldusernames)
 
     seen = set()
@@ -105,7 +105,11 @@ async def set_data_all_subs_dict(usernames):
 
     args.usernames = new_names
     write_args.setArgs(args)
+<<<<<<< HEAD
     await all_subs_helper(refetch=len(new_names)>0)
+=======
+    await all_subs_helper() if len(new_names) > 0 else None
+>>>>>>> 3.9
     args.usernames = set(all_usernames)
     write_args.setArgs(args)
 
@@ -132,7 +136,7 @@ def parsed_subscriptions_helper(reset=False):
     global ALL_SUBS
     global PARSED_SUBS
     args = read_args.retriveArgs()
-    if reset == True:
+    if reset is True:
         args.usernames = None
         write_args.setArgs(args)
     if not bool(args.usernames):
@@ -144,7 +148,7 @@ def parsed_subscriptions_helper(reset=False):
         PARSED_SUBS = filterNSort()
     elif args.usernames:
         usernameset = set(args.usernames)
-        PARSED_SUBS = list(filter(lambda x: x.name in usernameset, ALL_SUBS))
+        PARSED_SUBS = list(filter(lambda x: x.name or x.id in usernameset, ALL_SUBS))
     return PARSED_SUBS
 
 

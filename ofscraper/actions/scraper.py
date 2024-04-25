@@ -39,6 +39,10 @@ import ofscraper.utils.context.stdout as stdout
 import ofscraper.utils.progress as progress_utils
 import ofscraper.utils.system.free as free
 import ofscraper.utils.system.system as system
+from ofscraper.db.operations_.media import batch_mediainsert
+from ofscraper.db.operations_.profile import check_profile_table_exists,get_profile_info
+
+
 from ofscraper.utils.context.run_async import run
 
 log = logging.getLogger("shared")
@@ -74,11 +78,8 @@ async def process_messages(model_id, username, c):
 
             return list(filter(lambda x: isinstance(x, media.Media), output)), messages_
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -101,7 +102,7 @@ async def process_paid_post(model_id, username, c):
             [output.extend(post.all_media) for post in paid_content]
             log.debug(f"[bold]Paid media count without locked[/bold] {len(output)}")
 
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -113,11 +114,8 @@ async def process_paid_post(model_id, username, c):
                 paid_content,
             )
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -144,7 +142,7 @@ async def process_stories(model_id, username, c):
             )
             output = []
             [output.extend(stories.all_media) for stories in stories]
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -153,11 +151,8 @@ async def process_stories(model_id, username, c):
 
             return list(filter(lambda x: isinstance(x, media.Media), output)), stories
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -184,7 +179,7 @@ async def process_highlights(model_id, username, c):
             )
             output = []
             [output.extend(stories.all_media) for stories in highlights_]
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -196,11 +191,8 @@ async def process_highlights(model_id, username, c):
                 highlights_,
             )
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -234,7 +226,7 @@ async def process_timeline_posts(model_id, username, c):
             [output.extend(post.all_media) for post in timeline_only_posts]
             log.debug(f"[bold]Timeline media count without locked[/bold] {len(output)}")
 
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -249,11 +241,8 @@ async def process_timeline_posts(model_id, username, c):
                 timeline_only_posts,
             )
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -284,7 +273,7 @@ async def process_archived_posts(model_id, username, c):
             [output.extend(post.all_media) for post in archived_posts]
             log.debug(f"[bold]Archived media count without locked[/bold] {len(output)}")
 
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -299,11 +288,8 @@ async def process_archived_posts(model_id, username, c):
                 archived_posts,
             )
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -328,7 +314,7 @@ async def process_pinned_posts(model_id, username, c):
             [output.extend(post.all_media) for post in pinned_posts]
             log.debug(f"[bold]Pinned media count without locked[/bold] {len(output)}")
 
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 output,
                 model_id=model_id,
                 username=username,
@@ -340,11 +326,8 @@ async def process_pinned_posts(model_id, username, c):
                 pinned_posts,
             )
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -373,11 +356,8 @@ async def process_profile(username) -> list:
                 )
             return output, posts
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @free.space_checker
@@ -390,11 +370,11 @@ async def process_all_paid():
             username = profile.scrape_profile(model_id).get("username")
             if username == constants.getattr(
                 "DELETED_MODEL_PLACEHOLDER"
-            ) and await operations.check_profile_table_exists(
+            ) and await check_profile_table_exists(
                 model_id=model_id, username=username
             ):
                 username = (
-                    await operations.get_profile_info(
+                    await get_profile_info(
                         model_id=model_id, username=username
                     )
                     or username
@@ -422,7 +402,7 @@ async def process_all_paid():
                 model_id=model_id,
                 username=username,
             )
-            await operations.batch_mediainsert(
+            await batch_mediainsert(
                 new_medias,
                 model_id=model_id,
                 username=username,
@@ -474,11 +454,8 @@ async def process_labels(model_id, username, c):
                 post for ele in labelled_posts_labels for post in ele.posts
             ]
     except Exception as E:
-        try:
-            log.traceback_(E)
-            log.traceback_(traceback.format_exc())
-        except:
-            print(E)
+        log.traceback_(E)
+        log.traceback_(traceback.format_exc())
 
 
 @run
@@ -499,8 +476,8 @@ async def process_areas(ele, model_id) -> list:
                     output.extend(medias)
             return filters.filterMedia(output), filters.filterPost(posts)
         except Exception as E:
-            print(E)
-            raise E
+            log.traceback_(E)
+            log.traceback_(traceback.format_exc())
 
 
 async def process_task(model_id, username, ele):
@@ -514,8 +491,7 @@ async def process_task(model_id, username, ele):
         wait_min=constants.getattr("OF_MIN_WAIT_API"),
         wait_max=constants.getattr("OF_MAX_WAIT_API"),
         total_timeout=constants.getattr("API_TIMEOUT_PER_TASK"),
-                    new_request_auth=True
-
+        new_request_auth=True,
     ) as c:
         while True:
             max_count = min(
@@ -533,7 +509,7 @@ async def process_task(model_id, username, ele):
                     tasks.append(
                         asyncio.create_task(process_pinned_posts(model_id, username, c))
                     )
-                    setattr(progress_utils.pinned_layout, "visible", True)
+                    progress_utils.pinned_layout.visible = True
                     final_post_areas.remove("Pinned")
                 elif "Timeline" in final_post_areas:
                     tasks.append(
@@ -541,7 +517,7 @@ async def process_task(model_id, username, ele):
                             process_timeline_posts(model_id, username, c)
                         )
                     )
-                    setattr(progress_utils.timeline_layout, "visible", True)
+                    progress_utils.timeline_layout.visible = True
                     final_post_areas.remove("Timeline")
                 elif "Archived" in final_post_areas:
                     tasks.append(
@@ -549,37 +525,37 @@ async def process_task(model_id, username, ele):
                             process_archived_posts(model_id, username, c)
                         )
                     )
-                    setattr(progress_utils.archived_layout, "visible", True)
+                    progress_utils.archived_layout.visible = True
                     final_post_areas.remove("Archived")
                 elif "Purchased" in final_post_areas:
                     tasks.append(
                         asyncio.create_task(process_paid_post(model_id, username, c))
                     )
-                    setattr(progress_utils.paid_layout, "visible", True)
+                    progress_utils.paid_layout.visible = True
                     final_post_areas.remove("Purchased")
                 elif "Messages" in final_post_areas:
                     tasks.append(
                         asyncio.create_task(process_messages(model_id, username, c))
                     )
                     final_post_areas.remove("Messages")
-                    setattr(progress_utils.messages_layout, "visible", True)
+                    progress_utils.messages_layout.visible = True
                 elif "Highlights" in final_post_areas:
                     tasks.append(
                         asyncio.create_task(process_highlights(model_id, username, c))
                     )
-                    setattr(progress_utils.highlights_layout, "visible", True)
+                    progress_utils.highlights_layout.visible = True
                     final_post_areas.remove("Highlights")
                 elif "Stories" in final_post_areas:
                     tasks.append(
                         asyncio.create_task(process_stories(model_id, username, c))
                     )
-                    setattr(progress_utils.stories_layout, "visible", True)
+                    progress_utils.stories_layout.visible = True
                     final_post_areas.remove("Stories")
                 elif "Labels" in final_post_areas and ele.active:
                     tasks.append(
                         asyncio.create_task(process_labels(model_id, username, c))
                     )
-                    setattr(progress_utils.labelled_layout, "visible", True)
+                    progress_utils.labelled_layout.visible = True
                     final_post_areas.remove("Labels")
             if not bool(tasks):
                 break

@@ -5,36 +5,31 @@ import traceback
 from functools import partial
 
 import aiofiles
-from tenacity import (
-    AsyncRetrying,
-    retry_if_not_exception_message,
-    stop_after_attempt,
-    wait_random,
-)
 
 try:
     from win32_setctime import setctime  # pylint: disable=import-error
 except ModuleNotFoundError:
     pass
 import ofscraper.classes.placeholder as placeholder
-import ofscraper.download.common.common as common
-import ofscraper.download.common.globals as common_globals
+import ofscraper.download.shared.common.general as common
+import ofscraper.download.shared.globals as common_globals
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.system.system as system
-from ofscraper.download.common.alt_common import (
+from ofscraper.download.shared.classes.retries import download_retry
+from ofscraper.download.shared.common.alt_common import (
     handle_result_alt,
     media_item_keys_alt,
     media_item_post_process_alt,
 )
-from ofscraper.download.common.common import (
+from ofscraper.download.shared.common.general import (
     check_forced_skip,
     downloadspace,
     get_medialog,
     get_resume_size,
     size_checker,
 )
-from ofscraper.download.common.log import (
+from ofscraper.download.shared.utils.log import (
     get_url_log,
     path_to_file_logger,
     temp_file_logger,
@@ -48,9 +43,10 @@ async def alt_download(c, ele, username, model_id):
     common_globals.innerlog.get().debug(
         f"{get_medialog(ele)} download url:  {get_url_log(ele)}"
     )
-    sharedPlaceholderObj = await placeholder.Placeholders(ele, "mp4").init()
-
-    audio, video = await ele.mpd_dict
+    async for _ in download_retry():
+        with _:
+            sharedPlaceholderObj = await placeholder.Placeholders(ele, "mp4").init()
+            audio, video = await ele.mpd_dict
     path_to_file_logger(sharedPlaceholderObj, ele, common_globals.innerlog.get())
     audio = await alt_download_downloader(audio, c, ele)
     video = await alt_download_downloader(video, c, ele)
@@ -78,7 +74,7 @@ async def alt_download_downloader(
     item["total"] = None
 
     async for _ in AsyncRetrying(
-        stop=stop_after_attempt(constants.getattr("DOWNLOAD_FILE_NUM_TRIES")),
+        stop=stop_after_attempt(constants.getattr("DOWNLOAD_FILE_RETRIES")),
         wait=wait_random(
             min=constants.getattr("OF_MIN_WAIT_API"),
             max=constants.getattr("OF_MAX_WAIT_API"),

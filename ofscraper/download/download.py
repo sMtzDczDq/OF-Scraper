@@ -14,8 +14,9 @@ import ofscraper.utils.hash as hash
 import ofscraper.utils.separate as seperate
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.system as system
-from ofscraper.download.common.text import textDownloader
-from ofscraper.utils.context.run_async import run
+from ofscraper.download.shared.utils.text import textDownloader
+from ofscraper.db.operations_.media import get_media_ids_downloaded,get_media_ids_downloaded_model
+
 
 
 def medialist_filter(medialist, model_id, username):
@@ -25,7 +26,7 @@ def medialist_filter(medialist, model_id, username):
     elif read_args.retriveArgs().force_model_unique:
         log.info("Downloading unique medi afor model")
         media_ids = set(
-            operations.get_media_ids_downloaded_model(
+            get_media_ids_downloaded_model(
                 model_id=model_id, username=username
             )
         )
@@ -40,7 +41,7 @@ def medialist_filter(medialist, model_id, username):
     else:
         log.info("Downloading unique media across all models")
         media_ids = set(
-            operations.get_media_ids_downloaded(model_id=model_id, username=username)
+            get_media_ids_downloaded(model_id=model_id, username=username)
         )
         log.debug("Number of unique media ids in database for all models")
         medialist = seperate.separate_by_id(medialist, media_ids)

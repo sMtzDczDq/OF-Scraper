@@ -14,19 +14,25 @@ r"""
 import hashlib
 import json
 import time
-from contextlib import contextmanager
 from urllib.parse import urlparse
 
 import ofscraper.classes.sessionmanager as sessionManager
 import ofscraper.utils.auth.file as auth_file
+<<<<<<< HEAD
 
+=======
+import ofscraper.utils.cache as cache
+>>>>>>> 3.9
 import ofscraper.utils.constants as constants
 import ofscraper.utils.settings as settings
 import ofscraper.utils.cache as cache
 
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 3.9
 def read_request_auth(forced=None):
     request_auth = {
         "static_param": "",
@@ -82,7 +88,15 @@ def get_request_auth_deviint(forced=None):
             fmt = f"{content['start']}:{{}}:{{:x}}:{content['end']}"
             checksum_indexes = content["checksum_indexes"]
             checksum_constant = content["checksum_constant"]
+<<<<<<< HEAD
             cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
+=======
+            cache.set(
+                "api_onlyfans_sign",
+                [static_param, fmt, checksum_indexes, checksum_constant],
+                expire=constants.getattr("HOURLY_EXPIRY"),
+            )
+>>>>>>> 3.9
             return (static_param, fmt, checksum_indexes, checksum_constant)
 
 
@@ -106,7 +120,15 @@ def get_request_auth_sneaky(forced=None):
             fmt = f"{content['prefix']}:{{}}:{{:x}}:{content['suffix']}"
             checksum_indexes = content["checksum_indexes"]
             checksum_constant = content["checksum_constant"]
+<<<<<<< HEAD
             cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
+=======
+            cache.set(
+                "api_onlyfans_sign",
+                [static_param, fmt, checksum_indexes, checksum_constant],
+                expire=constants.getattr("HOURLY_EXPIRY"),
+            )
+>>>>>>> 3.9
             return (static_param, fmt, checksum_indexes, checksum_constant)
 
 
@@ -130,7 +152,15 @@ def get_request_auth_digitalcriminals(forced=None):
             fmt = content["format"]
             checksum_indexes = content["checksum_indexes"]
             checksum_constant = content["checksum_constant"]
+<<<<<<< HEAD
             cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
+=======
+            cache.set(
+                "api_onlyfans_sign",
+                [static_param, fmt, checksum_indexes, checksum_constant],
+                expire=constants.getattr("HOURLY_EXPIRY"),
+            )
+>>>>>>> 3.9
             return (static_param, fmt, checksum_indexes, checksum_constant)
 
 
@@ -191,4 +221,7 @@ def create_sign(link, headers):
 
     headers.update({"sign": final_sign, "time": time2})
     return headers
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3.9

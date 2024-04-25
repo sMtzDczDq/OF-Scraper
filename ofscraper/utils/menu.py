@@ -1,5 +1,4 @@
 import logging
-from contextlib import contextmanager
 
 import ofscraper.actions.process as process_actions
 import ofscraper.models.selector as userselector
@@ -7,6 +6,7 @@ import ofscraper.prompts.prompts as prompts
 import ofscraper.utils.actions as actions
 import ofscraper.utils.auth.file as auth_file
 import ofscraper.utils.config.menu as config_menu
+import ofscraper.utils.merge as merge
 import ofscraper.utils.profiles.manage as profiles_manage
 import ofscraper.utils.profiles.tools as profile_tools
 import ofscraper.utils.run as run
@@ -27,7 +27,7 @@ def get_count():
 
 def main_menu_action():
     global count
-    log.debug(f"[bold blue] Running Prompt Menu Mode[/bold blue]")
+    log.debug("[bold blue] Running Prompt Menu Mode[/bold blue]")
     while True:
         result_main_prompt = prompts.main_prompt()
         if result_main_prompt == "action":
@@ -68,6 +68,8 @@ def main_menu_action():
                     break
                 else:
                     profile_menu_helper(result_profiles_prompt)
+        elif result_main_prompt == "merge":
+            merge.merge_runner()
         elif result_main_prompt == "quit":
             return True
 

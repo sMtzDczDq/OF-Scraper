@@ -21,6 +21,7 @@ import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.progress as progress_utils
 from ofscraper.utils.context.run_async import run
+from ofscraper.utils.logs.helpers import is_trace
 
 log = logging.getLogger("shared")
 
@@ -233,7 +234,7 @@ async def scrape_labels(c, model_id, job_progress=None, offset=0):
         raise E
 
     finally:
-        (job_progress.remove_task(task) if job_progress and task != None else None)
+        (job_progress.remove_task(task) if job_progress and task is not None else None)
 
 
 async def process_tasks_get_posts_for_labels(tasks, labels, model_id):
@@ -367,7 +368,7 @@ async def scrape_posts_labels(c, label, model_id, job_progress=None, offset=0):
         raise E
 
     finally:
-        (job_progress.remove_task(task) if job_progress and task != None else None)
+        (job_progress.remove_task(task) if job_progress and task is not None else None)
 
     return label, posts, new_tasks
 
@@ -400,6 +401,8 @@ def set_check(unduped, model_id):
 
 
 def trace_log_task(responseArray, header=None):
+    if not is_trace():
+        return
     chunk_size = constants.getattr("LARGE_TRACE_CHUNK_SIZE")
     for i in range(1, len(responseArray) + 1, chunk_size):
         # Calculate end index considering potential last chunk being smaller
