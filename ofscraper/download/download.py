@@ -3,7 +3,6 @@ import logging
 import subprocess
 import traceback
 
-import ofscraper.db.operations as operations
 import ofscraper.download.downloadbatch as batchdownloader
 import ofscraper.download.downloadnormal as normaldownloader
 import ofscraper.filters.media.helpers as helpers

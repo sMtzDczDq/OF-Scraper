@@ -73,17 +73,7 @@ async def alt_download_downloader(
     item["path"] = placeholderObj.tempfilepath
     item["total"] = None
 
-    async for _ in AsyncRetrying(
-        stop=stop_after_attempt(constants.getattr("DOWNLOAD_FILE_RETRIES")),
-        wait=wait_random(
-            min=constants.getattr("OF_MIN_WAIT_API"),
-            max=constants.getattr("OF_MAX_WAIT_API"),
-        ),
-        retry=retry_if_not_exception_message(
-            constants.getattr("SPACE_DOWNLOAD_MESSAGE")
-        ),
-        reraise=True,
-    ):
+    async for _ in download_retry():
         with _:
             try:
                 _attempt = common.alt_attempt_get(item)
