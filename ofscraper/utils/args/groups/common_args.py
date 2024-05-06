@@ -8,6 +8,7 @@ import ofscraper.utils.args.helpers as helpers
 from ofscraper.__version__ import __version__
 from ofscraper.const.constants import KEY_OPTIONS
 
+from humanfriendly import parse_size
 
 def common_params(func):
 
@@ -72,30 +73,9 @@ def common_params(func):
         ),
         help="Settings for logging",
     )
+
     @click.option_group(
-        "Advanced Program Options",
-        click.option(
-            "-nc",
-            "--no-cache",
-            help="Disable cache",
-            default=False,
-            is_flag=True,
-        ),
-        click.option(
-            "-k",
-            "--key-mode",
-            help="Key mode override",
-            default=None,
-            type=click.Choice(KEY_OPTIONS),
-        ),
-        click.option(
-            "-dr",
-            "--dynamic-rules",
-            help="Dynamic signing",
-            default=None,
-            type=click.Choice(["dc", "deviint", "sneaky"], case_sensitive=False),
-            callback=lambda ctx, param, value: value.lower() if value else None,
-        ),
+        "Download Options",
         click.option(
             "-ar",
             "--no-auto-resume",
@@ -124,14 +104,13 @@ def common_params(func):
             default=None,
             type=int,
         ),
-        click.option(
-            "-up",
-            "--update-profile",
-            help="Get up-to-date profile info instead of cache",
-            default=False,
-            is_flag=True,
-        ),
-        click.option(
+
+    help="Options for downloads and download performance"
+    )
+
+    @click.option_group(
+        "Metadata Options",
+               click.option(
             "-md",
             "--metadata",
             "metadata",
@@ -162,6 +141,59 @@ def common_params(func):
             [select one --metadata or --metadata-update or --metadata-complete]""",
             flag_value="complete",
         ),
+
+
+    help="Options generating metadata"
+    )
+
+    @functools.wraps(func)
+    @click.pass_context
+    def wrapper(ctx, *args, **kwargs):
+        return func(ctx, *args, **kwargs)
+
+    return wrapper
+
+
+
+def common_advanced_params(func):
+    @click.option_group(
+        "Advanced Program Options",
+        click.option(
+            "-nc",
+            "--no-cache",
+            help="Disable cache and forces consecutive api scan",
+            default=False,
+            is_flag=True,
+        ),
+        click.option(
+            "-nca",
+            "--no-api-cache",
+            help="Forces consecutive api scan",
+            default=False,
+            is_flag=True,
+        ),
+        click.option(
+            "-k",
+            "--key-mode",
+            help="Key mode override",
+            default=None,
+            type=click.Choice(KEY_OPTIONS),
+        ),
+        click.option(
+            "-dr",
+            "--dynamic-rules",
+            help="Dynamic signing",
+            default=None,
+            type=click.Choice(["dc", "deviint", "sneaky"], case_sensitive=False),
+            callback=lambda ctx, param, value: value.lower() if value else None,
+        ),
+        click.option(
+            "-up",
+            "--update-profile",
+            help="Get up-to-date profile info instead of using cache",
+            default=False,
+            is_flag=True,
+        ),
         click.option(
             "-ds",
             "--download-script",
@@ -181,35 +213,90 @@ def common_params(func):
 
     return wrapper
 
-
 def common_other_params(func):
-    click.option_group(
-        "Downloading options",
+    @click.option_group(
+        "Media Filters",
+        click.option(
+            "-q",
+            "--quality",
+            type=click.Choice(["240", "720", "source"], case_sensitive=False),
+        ),
+    click.option(
+        "-mt",
+        "--mediatype",
+        help="Filter by media type (Videos, Audios, Images)",
+        default=[],
+        required=False,
+        type=helpers.mediatype_helper,
+        callback=lambda ctx, param, value: (
+            list(set(itertools.chain.from_iterable(value))) if value else []
+        ),
+        multiple=True,
+    ),
+    click.option(
+        "-sx",
+        "--size-max",
+        help="Filter out files larger than the given size (bytes or human-readable, e.g., 10mb)",
+        required=False,
+        type=parse_size,
+    ),
+    click.option(
+        "-sm",
+        "--size-min",
+        help="Filter out files smaller than the given size (bytes or human-readable, e.g., 10mb)",
+        required=False,
+        type=parse_size,
+    ),
+
+    click.option(
+        "-lx",
+        "-length-max",
+        help="max duration in seconds does not effect non-video files",
+        required=False,
+        type=int,
+    ),
+    click.option(
+        "-lm",
+        "--length-min",
+        help="min duration in seconds does not effect non-video files",
+        required=False,
+        type=int,
+    ),
+    help="Options for controlling which media is downloaded")
+
+    @click.option_group(
+        "Filename Modification options",
         click.option(
             "-g",
             "--original",
             help="Don't truncate long paths",
             is_flag=True,
         ),
+
         click.option(
-            "-q",
-            "--quality",
-            type=click.Choice(["240", "720", "source"], case_sensitive=False),
+            "-tt",
+            "--text-type",
+            help="set length based on word or letter",
+            type=click.Choice(["word", "letter"], case_sensitive=False),
+            default="word"
+        ),
+
+        click.option(
+            "-sr",
+            "--space-replacer",
+            help="character to replace spaces with",
         ),
         click.option(
-            "-lb",
-            "--label",
-            help="Filter by label (use helpers.label_helper to process)",
-            default=[],
-            required=False,
-            type=helpers.label_helper,
-            callback=lambda ctx, param, value: (
-                list(set(itertools.chain.from_iterable(value))) if value else []
-            ),
-            multiple=True,
+            "-tl",
+            "--textlength",
+            help="max length of text",
+            type=click.INT
         ),
-        help="Options for controlling download behavior",
-    )
+help="""
+\b
+Options for controlling the output of the final filename after placeholders are replaced
+"""
+     )
 
     @functools.wraps(func)
     @click.pass_context

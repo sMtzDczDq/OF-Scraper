@@ -21,7 +21,7 @@ def backup_prompt_db() -> bool:
                 "type": "list",
                 "name": name,
                 "message": "Have you backed up your database files?",
-                "option_instruction": "Database files will be modified during the merge process",
+                "option_instruction": "Database files will be recursely searched and modified during the merge process",
                 "choices": [Choice(True, "Yes"), Choice(False, "No")],
             }
         ]
@@ -52,7 +52,7 @@ def new_db_prompt():
             {
                 "type": "filepath",
                 "name": "database",
-                "message": "Merge db dir: ",
+                "message": "Merge db folder: ",
                 "option_instruction": """
                 directory for new merge database
                 It is best if merged database is stored seperately from source database(s)
@@ -72,14 +72,32 @@ def confirm_prompt_db(folder, new_db) -> bool:
             {
                 "type": "list",
                 "name": name,
-                "message": "confirm merge: ",
+                "message": "Confirm merge: ",
                 "instruction": f"user_data.db files from {folder} will be merged into {str(pathlib.Path(new_db,'user_data.db'))}",
                 "choices": [
                     Choice(True, "Yes"),
                     Choice(False, "No"),
                     Choice(None, "Back to Main Menu"),
                 ],
+                "default":False
             }
         ]
     )
     return answer[name]
+
+
+def model_id_prompt():
+    answer = promptClasses.batchConverter(
+        *[
+            {
+                "type": "inpit",
+                "name": "database",
+                "message": "Username/UD: ",
+                "option_instruction": """
+                Preferably the model ID
+                """,
+            },
+        ]
+    )
+    return answer["database"]
+

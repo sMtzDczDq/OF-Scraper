@@ -40,24 +40,21 @@ def is_rate_limited(exception):
 
 
 class SessionSleep:
-    def __init__(self):
-        self._sleep = None
-        self._last_date = None
+    def __init__(self,sleep=None):
+        self._sleep = sleep
+        self._last_date = arrow.now()
         self._alock=asyncio.Lock()
     async def async_toomany_req(self):
         async with self._alock:
             self.toomany_req()
     def toomany_req(self):
         log=logging.getLogger("shared")
-        if self._last_date is None:
-                self._sleep = constants.getattr("SESSION_SLEEP_INIT")
-                log.debug(f"too many req => setting sleep to init [{self._sleep} seconds]")
-
-        elif self._sleep is None:
+        dif_min=constants.getattr("SESSION_SLEEP_INCREASE_TIME_DIFF")
+        if self._sleep is None:
             self._sleep = constants.getattr("SESSION_SLEEP_INIT")
             log.debug(f"too many req => setting sleep to init [{self._sleep} seconds]")
-        elif arrow.now().float_timestamp - self._last_date.float_timestamp < 120:
-            log.debug(f"too many req => not changing sleep [{self._sleep} seconds] because last call less than 120 seconds")
+        elif arrow.now().float_timestamp - self._last_date.float_timestamp < dif_min:
+            log.debug(f"too many req => not changing sleep [{self._sleep} seconds] because last call less than {dif_min} seconds")
             return self._sleep
         else:
             self._sleep = self._sleep * 2
@@ -75,6 +72,10 @@ class SessionSleep:
     @property
     def sleep(self):
         return self._sleep
+    @sleep.setter
+    def sleep(self,val):
+        self._sleep=val
+
 
 
 
@@ -172,7 +173,7 @@ class sessionManager:
         self._keep_alive_exp = keep_alive_exp
         self._proxy = proxy
         self._delay = delay or 0
-        self._sem = semaphore or asyncio.Semaphore(sem or 100000)
+        self._sem = semaphore or asyncio.BoundedSemaphore(sem or 100000)
         self._sync_sem = sync_semaphore or threading.Semaphore(
             sync_sem or constants.getattr("SESSION_MANAGER_SYNC_SEM_DEFAULT")
         )
@@ -264,6 +265,7 @@ class sessionManager:
         pool_connect_timeout=None,
         read_timeout=None,
         sync_sem=None,
+        sleeper=None
     ):
         auth_requests.read_request_auth(forced=True) if sign else None
 
@@ -277,6 +279,7 @@ class sessionManager:
         max = wait_max or self._wait_max
         retries = retries or self._retries
         sync_sem = self._sync_sem or sync_sem
+        sleeper=sleeper or self._sleeper
         for _ in Retrying(
             retry=retry_if_not_exception_type(
                 (KeyboardInterrupt, asyncio.TimeoutError)
@@ -293,7 +296,7 @@ class sessionManager:
             r = None
             with _:
                 sync_sem.acquire()
-                self._sleeper.do_sleep()
+                sleeper.do_sleep()
                 try:
                     r = self._httpx_funct(
                         method,
@@ -321,7 +324,7 @@ class sessionManager:
                         r.raise_for_status()
                 except Exception as E:
                     if(is_rate_limited(E)):
-                        self._sleeper.toomany_req()
+                        sleeper.toomany_req()
                     log.traceback_(E)
                     log.traceback_(traceback.format_exc())
                     raise E
@@ -351,6 +354,7 @@ class sessionManager:
         connect_timeout=None,
         pool_connect_timeout=None,
         read_timeout=None,
+        sleeper=None,
         *args,
         **kwargs,
     ):
@@ -361,6 +365,7 @@ class sessionManager:
         log = log or self._log
         retries = retries or self._retries
         sem = sem or self._sem
+        sleeper=sleeper or self._sleeper
         async for _ in CustomTenacity(
             wait_exponential=tenacity.wait.wait_exponential(
                 multiplier=2, min=wait_min_exponential, max=wait_max_exponential
@@ -380,7 +385,7 @@ class sessionManager:
             with _:
                 r = None
                 await sem.acquire()
-                await self._sleeper.async_do_sleep()
+                await sleeper.async_do_sleep()
                 try:
                     headers = (
                         self._create_headers(headers, url, sign)
@@ -437,13 +442,20 @@ class sessionManager:
                         r.raise_for_status()
                 except Exception as E:
                     if(is_rate_limited(E)):
-                        await self._sleeper.async_toomany_req()
+                        await sleeper.async_toomany_req()
                     log.traceback_(E)
                     log.traceback_(traceback.format_exc())
                     sem.release()
                     raise E
         yield r
         sem.release()
+
+    @property
+    def sleep(self):
+        return self._sleeper._sleep
+    @sleep.setter
+    def sleep(self,val):
+        self._sleeper._sleep=val
 
     async def _httpx_funct_async(self, *args, **kwargs):
         t = await self._session.request(*args, **kwargs)

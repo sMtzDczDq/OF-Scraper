@@ -20,6 +20,8 @@ from ofscraper.db.operations_.media import get_media_ids_downloaded,get_media_id
 
 def medialist_filter(medialist, model_id, username):
     log = logging.getLogger("shared")
+    medialist = seperate.seperate_by_self(medialist)
+
     if read_args.retriveArgs().force_all:
         log.info("forcing all")
     elif read_args.retriveArgs().force_model_unique:
@@ -48,6 +50,8 @@ def medialist_filter(medialist, model_id, username):
         medialist = seperate.seperate_avatars(medialist)
         log.debug("Removed previously downloaded avatars/headers")
         log.debug(f"Final Number of media to download {len(medialist)} ")
+    
+
     return medialist
 
 

@@ -8,7 +8,6 @@ import aioprocessing
 import ofscraper.utils.config.data as config_data
 import ofscraper.utils.console as console_
 import ofscraper.utils.constants as constants
-from ofscraper.classes.semaphoreDelayed import semaphoreDelayed
 
 attempt = None
 attempt2 = None
@@ -47,17 +46,15 @@ def main_globals():
 
     # global
     global thread
-    thread = ThreadPoolExecutor(max_workers=config_data.get_download_semaphores() * 2)
+    thread = ThreadPoolExecutor(max_workers=config_data.get_download_semaphores()*2)
     global sem
     sem = config_data.get_download_semaphores()
-    global cache_thread
-    cache_thread = ThreadPoolExecutor()
     global dirSet
     dirSet = set()
     global lock
     lock = asyncio.Lock()
     global maxfile_sem
-    maxfile_sem = semaphoreDelayed(constants.getattr("MAXFILE_SEMAPHORE"))
+    maxfile_sem = asyncio.Semaphore(constants.getattr("MAXFILE_SEMAPHORE"))
     global console
     console = console_.get_shared_console()
     global localDirSet
@@ -87,4 +84,4 @@ def process_split_globals(pipeCopy, logCopy):
     pipe = pipeCopy
     log = logCopy
     pipe_lock = threading.Lock()
-    lock_pool = ThreadPoolExecutor()
+    lock_pool = ThreadPoolExecutor(max_workers=1)

@@ -51,10 +51,10 @@ def temp_cleanup():
             ]
         )
         for ele in roots:
-            if ele is None:
+            if ele == None:
                 continue
             for file in filter(
-                lambda x: re.search("\.part$|^temp_", str(x)) is not None,
+                lambda x: re.search("\.part$|^temp_", str(x)) != None,
                 pathlib.Path(ele).glob("**/*"),
             ):
                 file.unlink(missing_ok=True)
@@ -73,8 +73,9 @@ def truncate(path):
 
 
 def _windows_truncateHelper(path):
+    encode="utf16"
     path = pathlib.Path(os.path.normpath(path))
-    if len(str(path)) <= constants.getattr("WINDOWS_MAX_PATH"):
+    if len(str(path).encode("utf16")) <= constants.getattr("WINDOWS_MAX_PATH_BYTES"):
         return path
     path = pathlib.Path(path)
     dir = path.parent
@@ -86,12 +87,21 @@ def _windows_truncateHelper(path):
         ext = match.group(0)
     else:
         ext = ""
-    # -1 is for / between parentdirs and file
-    fileLength = constants.getattr("WINDOWS_MAX_PATH") - len(ext) - len(str(dir)) - 1
-    newFile = f"{re.sub(ext,'',file)[:fileLength]}{ext}"
-    final = pathlib.Path(dir, newFile)
-    log.debug(f"path: {final} path size: {len(str(final))}")
-    return pathlib.Path(dir, newFile)
+    file = re.sub(ext, "", path.name)
+    max_bytes = constants.getattr("WINDOWS_MAX_PATH_BYTES") - len(ext.encode(encode))-len(str(dir).encode(encode))
+    if max_bytes<=0:
+        raise (f"dir to larger then max bytes {path}")
+    low,high=0,len(file)
+    while low < high:
+        mid = (low + high) // 2
+        if len(file[:mid].encode(encode)) <= max_bytes:
+            low = mid + 1
+        else:
+            high = mid
+    newFile = f"{file[:high]}{ext}"
+    final_path=pathlib.Path(dir, newFile)
+    log.debug(f"path: {path} filepath bytesize: {len(path.encode(encode))}")
+    return final_path
 
 
 def _mac_truncateHelper(path):
@@ -113,6 +123,7 @@ def _mac_truncateHelper(path):
 
 
 def _linux_truncateHelper(path):
+    encode="utf8"
     path = pathlib.Path(os.path.normpath(path))
     dir = path.parent
     match = re.search("_[0-9]+\.[a-z4]*$", path.name, re.IGNORECASE) or re.search(
@@ -120,31 +131,23 @@ def _linux_truncateHelper(path):
     )
     ext = match.group(0) if match else ""
     file = re.sub(ext, "", path.name)
-    maxbytes = constants.getattr("LINUX_MAX_FILE") - len(ext.encode("utf8"))
-    small = 0
-    large = len(file)
-    target = None
-    maxLength = constants.getattr("LINUX_MAX_FILE") - len(ext)
-    if len(path.name.encode("utf8")) <= maxbytes:
-        target = large
-    while True and not target:
-        if len(file[:large].encode("utf8")) == maxbytes:
-            target = large
-        elif len(file[:small].encode("utf8")) == maxbytes:
-            target = small
-        elif large == small:
-            target = large
-        elif large == small + 1:
-            target = small
-        elif len(file[:large].encode("utf8")) > maxbytes:
-            large = int((small + large) / 2)
-        elif len(file[:large].encode("utf8")) < maxbytes:
-            small = large
-            large = int((large + maxLength) / 2)
-    newFile = f"{file[:target]}{ext}"
-    log.debug(f"path: {path} filename bytesize: {len(newFile.encode('utf8'))}")
+    max_bytes = constants.getattr("LINUX_MAX_FILE_NAME_BYTES") - len(ext.encode(encode))
+    low,high=0,len(file)
+    while low < high:
+        mid = (low + high) // 2
+        if len(file[:mid].encode(encode)) <= max_bytes:
+            low = mid + 1
+        else:
+            high = mid
+    newFile = f"{file[:high]}{ext}"
+    log.debug(f"path: {path} filename bytesize: {len(newFile.encode(encode))}")
     return pathlib.Path(dir, newFile)
 
+
+
+
+    
+    
 
 def cleanDB():
     try:
@@ -157,10 +160,3 @@ def cleanDB():
 
 def speed_file():
     return pathlib.Path(common_paths.get_profile_path() / "speed.zip")
-
-
-def get_all_db(path):
-    for ele in filter(
-        lambda x: re.search("user_data.db", str(x)), pathlib.Path(path).glob("**/*")
-    ):
-        yield ele

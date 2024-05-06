@@ -15,13 +15,10 @@ import ofscraper.utils.args.helpers as helpers
     context_settings=dict(help_option_names=["-h", "--help"]),
     invoke_without_command=True,
 )
+@common.common_params
+@common.common_other_params
 @click.option_group(
     "Content Options",
-    click.option(
-        "-q",
-        "--quality",
-        type=click.Choice(["240", "720", "source"], case_sensitive=False),
-    ),
     click.option(
         "-o",
         "--posts",
@@ -141,22 +138,6 @@ import ofscraper.utils.args.helpers as helpers
             is_flag=True,
         ),
     ),
-    click.constraints.mutually_exclusive(
-        click.option(
-            "-to",
-            "--protected-only",
-            help="Only download content that requires decryption",
-            default=False,
-            is_flag=True,
-        ),
-        click.option(
-            "-no",
-            "--normal-only",
-            help="Only download content that does not require decryption",
-            default=False,
-            is_flag=True,
-        ),
-    ),
     click.option(
         "-lb",
         "--label",
@@ -180,32 +161,6 @@ import ofscraper.utils.args.helpers as helpers
         "--after",
         help="Process posts at or after the given date (MM/DD/YYYY) for likes, unlikes, and downloads",
         type=helpers.arrow_helper,
-    ),
-    click.option(
-        "-mt",
-        "--mediatype",
-        help="Filter by media type (Videos, Audios, Images)",
-        default=[],
-        required=False,
-        type=helpers.mediatype_helper,
-        callback=lambda ctx, param, value: (
-            list(set(itertools.chain.from_iterable(value))) if value else []
-        ),
-        multiple=True,
-    ),
-    click.option(
-        "-sx",
-        "--size-max",
-        help="Filter out files larger than the given size (bytes or human-readable, e.g., 10mb)",
-        required=False,
-        type=parse_size,
-    ),
-    click.option(
-        "-sm",
-        "--size-min",
-        help="Filter out files smaller than the given size (bytes or human-readable, e.g., 10mb)",
-        required=False,
-        type=parse_size,
     ),
     click.option(
         "-mm/-ms",
@@ -263,6 +218,7 @@ import ofscraper.utils.args.helpers as helpers
         "-u",
         "--usernames",
         "--username",
+        # "username",
         help="Select which username to process (name,name2). Set to ALL for all users",
         default=None,
         type=helpers.username_helper,  # Assuming you'll still use this helper function
@@ -413,7 +369,7 @@ import ofscraper.utils.args.helpers as helpers
         help="""
             \b
             Flag for enabling/disabling  accounts with any promo price
-            [select one ppall-promo-only or --all-promo-skip]""",
+            [select one all-promo-only or --all-promo-skip]""",
         default=None,
         required=False,
         is_flag=True,
@@ -629,7 +585,7 @@ import ofscraper.utils.args.helpers as helpers
     ),
     help="Choose how usernames are searched, and define the order in which users are processed for actions",
 )
-@common.common_params
+@common.common_advanced_params
 @click.pass_context
 def program(ctx, *args, **kwargs):
     return ctx.params, ctx.info_name
