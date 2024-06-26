@@ -17,25 +17,26 @@ from prompt_toolkit.shortcuts import prompt as prompt
 import ofscraper.prompts.prompt_strings as prompt_strings
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
-import ofscraper.utils.args.areas as areas
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.areas as areas
+import ofscraper.utils.args.accessors.read as read_args
 
 
 def areas_prompt() -> list:
     args = read_args.retriveArgs()
     name = "value"
-    message = (
-        "Which area(s) would you do you want to download and like"
-        if "like" in args.action and len(args.like_area) == 0
-        else (
-            "Which area(s) would you want to download and unlike"
-            if "unike" in args.action and len(args.like_area) == 0
-            else "Which area(s) would you like to download"
-        )
-    )
+    message = None
+    print(args.command)
+    if "like" in args.action and len(args.like_area) == 0:
+        message = "Which area(s) would you do you want to download and like"
+    elif "unlike" in args.action and len(args.like_area) == 0:
+        message = "Which area(s) would you do you want to download and unlike"
+    elif "download" in args.action and args.command == "OF-Scraper":
+        message = "Which area(s) would you do you want to download"
+    elif "download" in args.action and args.command == "metadata":
+        message = "Which area(s) would you do you want to update metadata for"
     more_instruction = (
         """Hint: Since you have Like or Unlike set
-You must select one or more of Timeline,Pinned,Archived, or Label
+    You must select one or more of Timeline,Pinned,Archived, or Label
 """
         if ("like" or "unlike") in args.action and len(args.like_area) == 0
         else ""
@@ -61,12 +62,13 @@ You must select one or more of Timeline,Pinned,Archived, or Label
                     Choice("Stories"),
                     Choice("Messages"),
                     Choice("Purchased"),
-                    Choice("Labels"),
+                    Choice("Streams"),
                 ],
             }
         ]
     )
-    return answers[name]
+    answers[name].append(scrape_labels_prompt())
+    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
 
 
 def like_areas_prompt(like=True) -> list:
@@ -84,12 +86,15 @@ def like_areas_prompt(like=True) -> list:
                     Choice("Timeline"),
                     Choice("Pinned"),
                     Choice("Archived"),
-                    Choice("Labels"),
+                    Choice("Streams"),
+
                 ],
             }
         ]
     )
-    return answers[name]
+    answers[name].append(scrape_labels_prompt())
+    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
+
 
 
 def download_areas_prompt() -> list:
@@ -112,13 +117,34 @@ def download_areas_prompt() -> list:
                     Choice("Stories"),
                     Choice("Messages"),
                     Choice("Purchased"),
-                    Choice("Labels"),
+                    Choice("Streams"),
+
+
                 ],
             }
         ]
     )
-    return answers[name]
+    answers[name].append(scrape_labels_prompt())
+    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
+ 
 
+
+def scrape_labels_prompt():
+    name = "value"
+    answer = promptClasses.batchConverter(
+        *[
+            {
+                "type": "list",
+                "name": name,
+                "message": "Scrape labels\n[This is mainly for data enhancement]",
+                "choices": [Choice(True, "True"), Choice(False, "False", enabled=True)],
+                "default": False,
+            },
+        ]
+    )
+    if answer[name]:
+        return "Labels"
+    return
 
 def scrape_paid_prompt():
     name = "value"

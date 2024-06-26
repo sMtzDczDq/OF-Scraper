@@ -1,15 +1,17 @@
 import pathlib
+import inspect
+
 
 from InquirerPy.base import Choice
 from InquirerPy.validator import PathValidator
 from prompt_toolkit.shortcuts import prompt as prompt
-from rich.console import Console
 
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
-from ofscraper.utils.paths.common import get_profile_path
+from ofscraper.utils.paths.db import get_default_merge,get_default_current
+import ofscraper.utils.console as console
 
-console = Console()
+
 models = None
 
 
@@ -39,7 +41,7 @@ def folder_prompt_db():
                 "option_instruction": "The database path given will be searched recursively, so pick the closest path possible",
                 "filter": lambda x: prompt_validators.cleanTextInput(x),
                 "validate": PathValidator(is_dir=True),
-                "default": str(get_profile_path()),
+                "default": str(get_default_current()),
             },
         ]
     )
@@ -57,7 +59,7 @@ def new_db_prompt():
                 directory for new merge database
                 It is best if merged database is stored seperately from source database(s)
                 """,
-                "default": str(get_profile_path()),
+                "default": str(get_default_merge()),
                 "filter": lambda x: prompt_validators.cleanTextInput(x),
             },
         ]
@@ -79,12 +81,37 @@ def confirm_prompt_db(folder, new_db) -> bool:
                     Choice(False, "No"),
                     Choice(None, "Back to Main Menu"),
                 ],
-                "default":False
+                "default": False,
             }
         ]
     )
     return answer[name]
 
+def confirm_db_continue(completed,skipped) -> bool:
+    name = "continue"
+    answer = promptClasses.batchConverter(
+        *[
+            {
+                "type": "list",
+                "name": name,
+                "message": "Do another merge: ",
+                "call":lambda:console.get_console().print(
+                inspect.cleandoc(
+                f""" 
+                Merged: {len(completed)} db files
+                Skipped: {len(skipped)} db files
+                """)
+
+                ),
+                "choices": [
+                    Choice(True, "Yes"),
+                    Choice(False, "No"),
+                    Choice(None, "Back to Main Menu"),
+                ],
+                "default": False,
+            }
+        ]
+    )
 
 def model_id_prompt():
     answer = promptClasses.batchConverter(
@@ -100,4 +127,3 @@ def model_id_prompt():
         ]
     )
     return answer["database"]
-

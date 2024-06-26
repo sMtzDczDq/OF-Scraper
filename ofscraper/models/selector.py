@@ -9,9 +9,9 @@ import ofscraper.filters.models.sort as sort
 import ofscraper.filters.models.subtype as subtype
 import ofscraper.models.retriver as retriver
 import ofscraper.prompts.prompts as prompts
-import ofscraper.utils.args.read as read_args
-import ofscraper.utils.args.user as user_helper
-import ofscraper.utils.args.write as write_args
+import ofscraper.utils.args.accessors.read as read_args
+import ofscraper.utils.args.mutators.user as user_helper
+import ofscraper.utils.args.mutators.write as write_args
 import ofscraper.utils.constants as constants
 import ofscraper.utils.manager as manager
 import ofscraper.utils.settings as settings
@@ -21,6 +21,11 @@ ALL_SUBS = None
 PARSED_SUBS = None
 ALL_SUBS_DICT = {}
 log = logging.getLogger("shared")
+
+
+def get_num_selected():
+    global PARSED_SUBS
+    return len(PARSED_SUBS) if PARSED_SUBS != None is None else None
 
 
 def get_model_fromParsed(name):
@@ -148,7 +153,13 @@ def parsed_subscriptions_helper(reset=False):
         PARSED_SUBS = filterNSort()
     elif args.usernames:
         usernameset = set(args.usernames)
-        PARSED_SUBS = list(filter(lambda x: x.name or x.id in usernameset, ALL_SUBS))
+        PARSED_SUBS = list(
+            filter(
+                lambda x: (x.name in usernameset) or (str(x.id) in usernameset),
+                ALL_SUBS,
+            )
+        )
+
     return PARSED_SUBS
 
 

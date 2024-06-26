@@ -54,14 +54,24 @@ class Post(base.base):
         if self.post.get("isPinned"):
             return 1
         return 0
-
+    @property
+    def stream(self):
+        if self.post.get("streamId"):
+            return 1
+        return 0
     @property
     def favorited(self):
-        return self.post.get("isFavorite")
+        (
+            self.post.get("canToggleFavorite") == False
+            if self.post.get("canToggleFavorite") != None
+            else self.post.get("isFavorite")
+        )
 
     @property
     def opened(self):
-        return self.post.get("isOpened")
+        if self.post.get("isOpened"):
+            return 1
+        return 0
 
     @property
     def regular_timeline(self):
@@ -98,6 +108,8 @@ class Post(base.base):
             return "pinned"
         elif self.archived:
             return "archived"
+        elif self.stream:
+            return "stream"
         elif self.post.get("responseType") == "post":
             return "timeline"
         return self.post.get("responseType")

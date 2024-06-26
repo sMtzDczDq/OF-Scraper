@@ -11,8 +11,8 @@ from bs4 import MarkupResemblesLocatorWarning
 from mpegdash.parser import MPEGDASHParser
 
 import ofscraper.classes.base as base
-import ofscraper.classes.sessionmanager as sessionManager
-import ofscraper.utils.args.quality as quality
+import ofscraper.classes.sessionmanager.ofsession as sessionManager
+import ofscraper.utils.args.accessors.quality as quality
 import ofscraper.utils.config.data as data
 import ofscraper.utils.constants as constants
 import ofscraper.utils.dates as dates
@@ -35,6 +35,7 @@ class Media(base.base):
         self._final_url = None
         self._cached_parse_mpd = None
         self._mpd = None
+        self._log=None
 
     def __eq__(self, other):
         return self.postid == other.postid
@@ -327,14 +328,19 @@ class Media(base.base):
             "Key-Pair-Id": self.keypair,
             "Signature": self.signature,
         }
-        async with sessionManager.sessionManager(
+        async with sessionManager.OFSessionManager(
             retries=constants.getattr("MPD_NUM_TRIES"),
             wait_min=constants.getattr("OF_MIN_WAIT_API"),
             wait_max=constants.getattr("OF_MAX_WAIT_API"),
-            new_request_auth=True,
+            connect_timeout=constants.getattr("MPD_CONNECT_TIMEOUT"),
+            total_timeout=constants.getattr("MPD_TOTAL_TIMEOUT"),
+            read_timeout=constants.getattr("MPD_READ_TIMEOUT"),
+            pool_timeout=constants.getattr("MPD_POOL_CONNECT_TIMEOUT"),
             semaphore=semaphore,
+            log=self._log,
+            refresh=False,
         ) as c:
-            async with c.requests_async(url=self.mpd, params=params) as r:
+            async with c.requests_async(url=self.mpd, params=params,forced=constants.getattr("MPD_FORCE_KEY")) as r:
                 self._cached_parse_mpd = MPEGDASHParser.parse(await r.text_())
                 return self._cached_parse_mpd
 
@@ -352,7 +358,7 @@ class Media(base.base):
         if not self.mpd:
             return None
         responsetype = self.post.post["responseType"]
-        if responsetype in ["timeline", "archived", "pinned", "posts"]:
+        if responsetype in ["timeline", "archived", "pinned", "posts","streams"]:
             responsetype = "post"
         return constants.getattr("LICENCE_URL").format(
             self.id, responsetype, self.postid
@@ -396,25 +402,6 @@ class Media(base.base):
             return False
         return True
 
-    # for use in dynamic names
-    @property
-    def needs_count(self):
-        if set(["text", "postid", "post_id"]).isdisjoint(
-            [
-                name
-                for text, name, spec, conv in list(
-                    string.Formatter().parse(data.get_fileformat())
-                )
-            ]
-        ):
-            return False
-        elif len(self._post.post_media) > 1 or self.responsetype in [
-            "stories",
-            "highlights",
-        ]:
-            return True
-        return False
-
     @property
     def username(self):
         return self._post.username
@@ -426,6 +413,14 @@ class Media(base.base):
     @property
     def duration_string(self):
         return dates.format_seconds(self.duration) if self.duration else None
+    
+    @property
+    def log(self):
+        return self._log
+
+    @log.setter
+    def log(self, val):
+        self._log=val
 
     def get_text(self):
         if self.responsetype != "Profile":

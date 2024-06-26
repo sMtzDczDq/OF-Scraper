@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import QueueHandler
 
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.logs.classes as log_class
 import ofscraper.utils.logs.globals as log_globals
 import ofscraper.utils.logs.helpers as log_helpers
@@ -26,6 +26,7 @@ def add_widget(widget):
 def get_shared_logger(main_=None, other_=None, name=None):
     # create a logger
     logger = logging.getLogger(name or "shared")
+    logger_other = logging.getLogger(f"{name}_other" if name else "shared_other")
     logger.handlers.clear()
     log_helpers.addtraceback()
     log_helpers.addtrace()
@@ -39,7 +40,7 @@ def get_shared_logger(main_=None, other_=None, name=None):
     mainhandle.setLevel(log_helpers.getLevel(read_args.retriveArgs().output))
     # add a handler that uses the shared queue
     logger.addHandler(mainhandle)
-    discord_level = log_helpers.getNumber(read_args.retriveArgs().discord)
+    discord_level = log_helpers.getNumber(settings.get_discord_level())
     file_level = log_helpers.getNumber(settings.get_log_level())
     other_ = other_ or log_globals.otherqueue_
     if hasattr(main_, "get") and hasattr(main_, "put_nowait"):
@@ -50,8 +51,12 @@ def get_shared_logger(main_=None, other_=None, name=None):
         otherhandle.name = "other"
     otherhandle.setLevel(min(file_level, discord_level))
     logger.addHandler(otherhandle)
+    logger_other.addHandler(otherhandle)
+    if settings.get_output_level() == "LOW":
+        logger_other.addHandler(mainhandle)
     # log all messages, debug and up
     logger.setLevel(1)
+    logger_other.setLevel(1)
     return logger
 
 

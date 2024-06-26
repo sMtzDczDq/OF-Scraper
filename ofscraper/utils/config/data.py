@@ -30,25 +30,28 @@ def get_main_profile(config=None):
 
 
 @wrapper.config_reader
-def get_filesize_limit(config=None, mediatype=ModuleNotFoundError):
+def get_filesize_max(config=None, mediatype=None):
     if config is False:
-        return constants.FILE_SIZE_LIMIT_DEFAULT
+        return constants.FILE_SIZE_MAX_DEFAULT
     try:
         if config.get("file_size_max") is not None:
             size = config.get("file_size_max")
-
+       
         elif (
             config.get("overwrites", {})
             .get((mediatype or "").lower(), {})
             .get("file_size_max")
         ):
-            return (
+            size= (
                 config.get("overwrites", {})
                 .get((mediatype or "").lower(), {})
                 .get("file_size_max")
             )
         elif config.get("download_options", {}).get("file_size_max"):
             size = config.get("download_options", {}).get("file_size_max")
+        
+        elif config.get("download_options", {}).get("file_size_limit"):
+            size = config.get("download_options", {}).get("file_size_limit")
         return parse_size(
             str(
                 size
@@ -174,15 +177,15 @@ def get_InfiniteLoop(config=None):
 
 
 @wrapper.config_reader
-def get_disable_after(config=None):
+def get_enable_after(config=None):
     if config is False:
-        return constants.DISABLE_AFTER_DEFAULT
-    val = (
-        config.get("disable_auto_after")
-        if config.get("disable_auto_after") is not None
-        else config.get("advanced_options", {}).get("disable_auto_after")
-    )
-    return val if val is not None else constants_attr.getattr("DISABLE_AFTER_DEFAULT")
+        return constants.ENABLE_AUTO_AFTER_DEFAULT
+    val = not config.get("disable_auto_after")
+    val=not config.get("advanced_options", {}).get("disable_auto_after") if val is None else val
+    val=config.get("enable_auto_after") if val is None else val
+    val=config.get("advanced_options", {}).get("enable_auto_after") if val is None else val
+        
+    return val if val is not None else constants_attr.getattr("ENABLE_AUTO_AFTER_DEFAULT")
 
 
 @wrapper.config_reader
@@ -465,6 +468,20 @@ def get_pinned_responsetype(config=None, mediatype=None):
         or constants_attr.getattr("RESPONSE_TYPE_DEFAULT")["pinned"]
     )
 
+@wrapper.config_reader
+def get_streams_responsetype(config=None, mediatype=None):
+    if config is False:
+        return constants.RESPONSE_TYPE_DEFAULT["streams"]
+    return (
+        config.get("overwrites", {})
+        .get((mediatype or "").lower(), {})
+        .get("responsetype", {})
+        .get("streams")
+        or config.get("streams")
+        or config.get("responsetype", {}).get("streams")
+        or constants_attr.getattr("RESPONSE_TYPE_DEFAULT")["streams"]
+    )
+
 
 @wrapper.config_reader
 def get_spacereplacer(config=None, mediatype=None):
@@ -531,18 +548,10 @@ def get_dynamic(config=None):
         if value
         and value.lower()
         in set(
-            [
-                "deviint",
-                "digitalcriminals",
-                "dv",
-                "dev",
-                "dc",
-                "digital",
-                "digitials",
-                "sneaky",
-            ]
+            constants_attr.getattr("DYNAMIC_OPTIONS_ALL")
         )
-        else "deviint"
+        else
+        constants_attr.getattr("DYNAMIC_RULE_DEFAULT")
     )
 
 

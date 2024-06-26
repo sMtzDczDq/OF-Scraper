@@ -4,30 +4,30 @@ import ofscraper.api.subscriptions.lists as lists
 import ofscraper.api.subscriptions.subscriptions as subscriptions
 import ofscraper.classes.models as models
 import ofscraper.prompts.prompts as prompts
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.console as console
-import ofscraper.utils.context.stdout as stdout
 import ofscraper.utils.me as me_util
+from ofscraper.utils.live.screens import update_activity_task
 
 
 async def get_models() -> list:
     """
     Get user's subscriptions in form of a list.
     """
-    with stdout.lowstdout():
-        count = get_sub_count()
-        if not bool(read_args.retriveArgs().usernames):
-            return await get_via_list(count)
-        elif "ALL" in read_args.retriveArgs().usernames:
-            return await get_via_list(count)
-        elif read_args.retriveArgs().individual:
-            return await get_via_individual()
-        elif read_args.retriveArgs().list:
-            return get_via_list(count)
-        elif (sum(count) // 10) > len(read_args.retriveArgs().usernames):
-            return await get_via_individual()
-        else:
-            return await get_via_list(count)
+    count = get_sub_count()
+    update_activity_task(description="Getting subscriptions")
+    if not bool(read_args.retriveArgs().usernames):
+        return await get_via_list(count)
+    elif "ALL" in read_args.retriveArgs().usernames:
+        return await get_via_list(count)
+    elif read_args.retriveArgs().individual:
+        return await get_via_individual()
+    elif read_args.retriveArgs().list:
+        return get_via_list(count)
+    elif (sum(count) // 10) >= len(read_args.retriveArgs().usernames):
+        return await get_via_individual()
+    else:
+        return await get_via_list(count)
 
 
 async def get_via_list(count):
@@ -50,17 +50,6 @@ async def get_via_list(count):
     return models_objects
 
 
-async def get_main_list(count):
-    out = []
-    active_subscriptions = await subscriptions.get_subscriptions(count[0], forced=True)
-    expired_subscriptions = await subscriptions.get_subscriptions(
-        count[1], account="expired", forced=True
-    )
-    out.extend(active_subscriptions)
-    out.extend(expired_subscriptions)
-    return out
-
-
 async def get_via_individual():
     out = await individual.get_subscription()
     console.get_shared_console().print(
@@ -79,8 +68,6 @@ def get_selected_model(parsed_subscriptions: list) -> tuple:
     """
     return prompts.model_selector(parsed_subscriptions)
 
-
-# check if auth is valid
 def get_sub_count():
     name, username = me_util.parse_user()
     subscribe_count = me.parse_subscriber_count()

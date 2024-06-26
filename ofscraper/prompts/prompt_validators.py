@@ -10,7 +10,7 @@ from pathvalidate import validate_filename, validate_filepath
 from prompt_toolkit.validation import ValidationError, Validator
 
 import ofscraper.classes.placeholder as placeholders
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.paths.check as paths_check
 import ofscraper.utils.profiles.data as profiles_data
 import ofscraper.utils.profiles.tools as profiles_tools
@@ -325,6 +325,7 @@ def like_area_validator_posts():
             and "Pinned" not in x + list(args.posts)
             and "Archived" not in x + list(args.posts)
             and "Labels" not in x + list(args.posts)
+            and "Streams" not in x + list(args.posts)
         ):
             return
         return True

@@ -21,7 +21,7 @@ import ofscraper.classes.labels as labels_class
 import ofscraper.db.operations_.helpers as helpers
 import ofscraper.db.operations_.posts as post_
 import ofscraper.db.operations_.wrapper as wrapper
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.db.operations_.profile import get_single_model_via_profile
 
 console = Console()
@@ -199,9 +199,7 @@ def get_all_labels_transition(
         ]
 
 
-async def modify_unique_constriant_labels(
-    model_id=None, username=None, db_path=None, **kwargs
-):
+async def rebuild_labels_table(model_id=None, username=None, db_path=None, **kwargs):
     database_model = get_single_model_via_profile(
         model_id=model_id, username=username, db_path=db_path
     )

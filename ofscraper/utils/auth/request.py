@@ -12,28 +12,22 @@ r"""
 """
 
 import hashlib
+import arrow
 import json
+import logging
 import time
 from urllib.parse import urlparse
 
-import ofscraper.classes.sessionmanager as sessionManager
+import ofscraper.classes.sessionmanager.sessionmanager as sessionManager
 import ofscraper.utils.auth.file as auth_file
-<<<<<<< HEAD
-
-=======
-import ofscraper.utils.cache as cache
->>>>>>> 3.9
 import ofscraper.utils.constants as constants
 import ofscraper.utils.settings as settings
 import ofscraper.utils.cache as cache
 
+curr_auth=None
+last_check=None
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 3.9
-def read_request_auth(forced=None):
+def read_request_auth(refresh=True,forced=False):
     request_auth = {
         "static_param": "",
         "format": "",
@@ -42,7 +36,7 @@ def read_request_auth(forced=None):
     }
 
     # *values, = get_request_auth()
-    result = get_request_auth(forced=forced)
+    result = get_request_auth(refresh=refresh,forced=forced)
     if not result:
         raise json.JSONDecodeError("No content")
     (*values,) = result
@@ -51,117 +45,191 @@ def read_request_auth(forced=None):
     return request_auth
 
 
-def get_request_auth(forced=False):
-    if (settings.get_dynamic_rules()) in {
-        "deviint",
-        "dv",
-        "dev",
+def get_request_auth(refresh=False,forced=False):
+    global curr_auth
+    global last_check
+    if not last_check:
+        pass
+    elif curr_auth and (arrow.now().float_timestamp-last_check.float_timestamp)<constants.getattr("THIRTY_EXPIRY"):
+        return curr_auth
+    dynamic=settings.get_dynamic_rules()
+    auth=None
+    if constants.getattr("DYNAMIC_RULE") and dynamic in {"manual"}:
+        auth=get_request_auth_dynamic_rule_manual()
+    elif constants.getattr("DYNAMIC_GENERIC_URL") and dynamic in {"generic"}:
+        auth=get_request_auth_generic()
+    elif (dynamic) in {
+        "datawhores"
     }:
-
-        return get_request_auth_deviint(forced=forced)
-    elif (settings.get_dynamic_rules()) in {
-        "sneaky",
+        auth = get_request_auth_datawhores()
+    elif (dynamic) in {
+        "xagler"
     }:
+        auth = get_request_auth_xagler()
+    elif (dynamic) in {
+        "rafa"
+    }:
+        auth = get_request_auth_rafa()
+    elif (dynamic) in {
+        "dc","digital","digitalcriminal","digitalcriminals"
+    }:
+        auth = get_request_auth_digitalcriminals()
+    if auth==None:
+        auth = get_request_auth_datawhores()
+    cache.set(
+        "api_onlyfans_sign",
+        auth,
+        constants.getattr("THIRTY_EXPIRY")
+    )
+    curr_auth=auth
+    last_check=arrow.now()
+    return auth
 
-        return get_request_auth_sneaky(forced=forced)
-    else:
-        return get_request_auth_digitalcriminals(forced=forced)
+def get_request_auth_dynamic_rule_manual():
+    content = constants.getattr("DYNAMIC_RULE")
+    return request_auth_helper_picker(content)
 
-
-def get_request_auth_deviint(forced=None):
-    if not forced and cache.get("api_onlyfans_sign"):
-        return cache.get("api_onlyfans_sign")
+def get_request_auth_generic():
+    logging.getLogger("shared").debug(f"getting new signature with generic")
     with sessionManager.sessionManager(
         backend="httpx",
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
     ) as c:
+        
+        with c.requests(
+            constants.getattr("DYNAMIC_GENERIC_URL"),
+        ) as r:
+            content = r.json_()
+            return request_auth_helper_picker(content)
+           
+
+def get_request_auth_deviint():
+    logging.getLogger("shared").debug(f"getting new signature with deviint")
+
+    with sessionManager.sessionManager(
+        backend="httpx",
+        retries=constants.getattr("GIT_NUM_TRIES"),
+        wait_min=constants.getattr("GIT_MIN_WAIT"),
+        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
+    ) as c:
+        
         with c.requests(
             constants.getattr("DEVIINT"),
-            headers=False,
-            cookies=False,
-            sign=False,
         ) as r:
             content = r.json_()
-            static_param = content["static_param"]
-            fmt = f"{content['start']}:{{}}:{{:x}}:{content['end']}"
-            checksum_indexes = content["checksum_indexes"]
-            checksum_constant = content["checksum_constant"]
-<<<<<<< HEAD
-            cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
-=======
-            cache.set(
-                "api_onlyfans_sign",
-                [static_param, fmt, checksum_indexes, checksum_constant],
-                expire=constants.getattr("HOURLY_EXPIRY"),
-            )
->>>>>>> 3.9
-            return (static_param, fmt, checksum_indexes, checksum_constant)
+            return request_auth_helper_picker(content)
 
 
-def get_request_auth_sneaky(forced=None):
-    if not forced and cache.get("api_onlyfans_sign"):
-        return cache.get("api_onlyfans_sign")
+def get_request_auth_datawhores():
+    logging.getLogger("shared").debug(f"getting new signature with datawhores")
+
     with sessionManager.sessionManager(
         backend="httpx",
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
     ) as c:
+        
         with c.requests(
-            constants.getattr("SNEAKY"),
-            headers=False,
-            cookies=False,
-            sign=False,
+            constants.getattr("DATAWHORES_URL"),
         ) as r:
             content = r.json_()
-            static_param = content["static_param"]
-            fmt = f"{content['prefix']}:{{}}:{{:x}}:{content['suffix']}"
-            checksum_indexes = content["checksum_indexes"]
-            checksum_constant = content["checksum_constant"]
-<<<<<<< HEAD
-            cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
-=======
-            cache.set(
-                "api_onlyfans_sign",
-                [static_param, fmt, checksum_indexes, checksum_constant],
-                expire=constants.getattr("HOURLY_EXPIRY"),
-            )
->>>>>>> 3.9
-            return (static_param, fmt, checksum_indexes, checksum_constant)
+            return request_auth_helper_picker(content)
 
 
-def get_request_auth_digitalcriminals(forced=None):
-    if not forced and cache.get("api_onlyfans_sign"):
-        return cache.get("api_onlyfans_sign")
+def get_request_auth_xagler():
+    logging.getLogger("shared").debug(f"getting new signature with xagler")
+
     with sessionManager.sessionManager(
         backend="httpx",
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
+    ) as c:
+        
+        with c.requests(
+            constants.getattr("XAGLER_URL"),
+        ) as r:
+            content = r.json_()
+            return request_auth_helper_picker(content)
+def get_request_auth_rafa():
+    logging.getLogger("shared").debug(f"getting new signature with rafa")
+
+    with sessionManager.sessionManager(
+        backend="httpx",
+        retries=constants.getattr("GIT_NUM_TRIES"),
+        wait_min=constants.getattr("GIT_MIN_WAIT"),
+        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
+    ) as c:
+        
+        with c.requests(
+            constants.getattr("RAFA_URL"),
+        ) as r:
+            content = r.json_()
+            return request_auth_helper_picker(content)
+
+def get_request_auth_riley():
+    logging.getLogger("shared").debug(f"getting new signature with riley")
+
+    with sessionManager.sessionManager(
+        backend="httpx",
+        retries=constants.getattr("GIT_NUM_TRIES"),
+        wait_min=constants.getattr("GIT_MIN_WAIT"),
+        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
+    ) as c:
+        
+        with c.requests(
+            constants.getattr("RILEY_URL"),
+        ) as r:
+            content = r.json_()
+            return request_auth_helper_picker(content)
+def get_request_auth_digitalcriminals():
+    logging.getLogger("shared").debug(f"getting new signature with digitalcriminals")
+
+    with sessionManager.sessionManager(
+        backend="httpx",
+        retries=constants.getattr("GIT_NUM_TRIES"),
+        wait_min=constants.getattr("GIT_MIN_WAIT"),
+        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        refresh=False,
     ) as c:
         with c.requests(
             constants.getattr("DIGITALCRIMINALS"),
-            headers=False,
-            cookies=False,
-            sign=False,
         ) as r:
             content = r.json_()
-            static_param = content["static_param"]
-            fmt = content["format"]
-            checksum_indexes = content["checksum_indexes"]
-            checksum_constant = content["checksum_constant"]
-<<<<<<< HEAD
-            cache.set("api_onlyfans_sign",[static_param, fmt, checksum_indexes, checksum_constant],expire=constants.getattr("HOURLY_EXPIRY"))
-=======
-            cache.set(
-                "api_onlyfans_sign",
-                [static_param, fmt, checksum_indexes, checksum_constant],
-                expire=constants.getattr("HOURLY_EXPIRY"),
-            )
->>>>>>> 3.9
-            return (static_param, fmt, checksum_indexes, checksum_constant)
+            return request_auth_helper_picker(content)
+
+def request_auth_helper_picker(content):
+    if content.get("suffix"):
+                return request_auth_helper(content)
+    else:
+        return request_auth_helper_alt_format(content)
+
+
+def request_auth_helper_alt_format(content):
+    static_param = content["static_param"]
+    fmt = content["format"]
+    checksum_indexes = content["checksum_indexes"]
+    checksum_constant = content["checksum_constant"]
+    return (static_param, fmt, checksum_indexes, checksum_constant)      
+
+def request_auth_helper(content):
+    static_param = content["static_param"]
+    fmt = f"{content['prefix']}:{{}}:{{:x}}:{content['suffix']}"
+    checksum_indexes = content["checksum_indexes"]
+    checksum_constant = content["checksum_constant"]
+    return (static_param, fmt, checksum_indexes, checksum_constant)
+
+
+
 
 
 def make_headers():
@@ -191,11 +259,11 @@ def get_cookies():
     return f"auth_id={auth['auth_id']};sess={auth['sess']};"
 
 
-def create_sign(link, headers):
+def create_sign(link, headers, refresh=False,forced=False):
     """
     credit: DC and hippothon
     """
-    content = read_request_auth()
+    content = read_request_auth(refresh=refresh,forced=forced)
 
     time2 = str(round(time.time() * 1000))
 

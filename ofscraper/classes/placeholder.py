@@ -6,7 +6,7 @@ import re
 import arrow
 
 import ofscraper.models.selector as selector
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.config.custom as custom_
 import ofscraper.utils.config.data as data
@@ -17,6 +17,7 @@ import ofscraper.utils.paths.common as common_paths
 import ofscraper.utils.paths.paths as paths
 import ofscraper.utils.profiles.data as profile_data
 import ofscraper.utils.settings as settings
+from ofscraper.utils.string import parse_safe
 
 log = logging.getLogger("shared")
 
@@ -338,11 +339,10 @@ class Placeholders(basePlaceholder):
         log.debug(f"final filename path {out}")
         self._filename = out
         return out
-
     def _addcount(self, ele, out):
         if not constants.getattr("FILE_COUNT_PLACEHOLDER"):
-            return
-        elif not ele.needs_count:
+            return out
+        elif not self._needs_count(ele):
             return out
         out = re.sub(" $", "", out)
         # insert count
@@ -352,6 +352,18 @@ class Placeholders(basePlaceholder):
             out = f"{out}_{ele.count}"
         return out
 
+    def _needs_count(self,ele):
+        unique=set(["filename","only_file_name","onlyfilename","original_filename","originalfilename","media_id","mediaid"])
+        file_format=parse_safe(data.get_fileformat())
+        if len((unique&file_format))==0:
+            return True
+        elif len(ele._post.post_media) > 1 or ele.responsetype in [
+            "stories",
+            "highlights",
+        ]:
+            return True
+        return False
+
     @property
     def filepath(self):
         return pathlib.Path(self._filepath)
@@ -359,6 +371,10 @@ class Placeholders(basePlaceholder):
     @property
     def filename(self):
         return pathlib.Path(self._filepath).name
+
+    @property
+    def filedir(self):
+        return pathlib.Path(self._filepath).parent
 
     @property
     def trunicated_filename(self):
@@ -371,8 +387,17 @@ class Placeholders(basePlaceholder):
         return self._filepath
 
     @property
-    def filedir(self):
+    def trunicated_filedir(self):
         return pathlib.Path(paths.truncate(self._filepath)).parent
+
+    @property
+    def size(self):
+        if not self.trunicated_filepath:
+            return
+        elif not self.trunicated_filepath.exists():
+            return
+        else:
+            return self.trunicated_filepath.stat().st_size
 
 
 class Textholders(basePlaceholder):

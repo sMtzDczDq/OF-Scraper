@@ -18,84 +18,85 @@ import traceback
 import arrow
 
 import ofscraper.api.common.logs as common_logs
-import ofscraper.classes.sessionmanager as sessionManager
-import ofscraper.utils.args.read as read_args
-import ofscraper.utils.cache as cache
+import ofscraper.classes.sessionmanager.ofsession as sessionManager
+from ofscraper.classes.sessionmanager.sessionmanager import SessionSleep
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as constants
-import ofscraper.utils.progress as progress_utils
+import ofscraper.utils.live.screens as progress_utils
 import ofscraper.utils.settings as settings
+from ofscraper.db.operations_.media import (
+    get_media_ids_downloaded_model,
+    get_messages_media,
+)
+from ofscraper.db.operations_.messages import (
+    get_messages_post_info,
+    get_youngest_message_date,
+)
 from ofscraper.utils.context.run_async import run
 from ofscraper.utils.logs.helpers import is_trace
-from ofscraper.db.operations_.messages import get_messages_post_info,get_youngest_message_date
-from ofscraper.db.operations_.media import get_messages_media
+from ofscraper.api.common.after import get_after_pre_checks
+from ofscraper.api.common.cache.read import read_full_after_scan_check
+from ofscraper.api.common.check import update_check
 
 
 
+API="messages"
 log = logging.getLogger("shared")
-sleeper=None
-
-
-
-@run
-async def get_messages_progress(model_id, username, forced_after=None, c=None):
-    global after
-    oldmessages=None
-    if not settings.get_api_cache_disabled():
-        oldmessages=await get_messages_post_info(model_id=model_id, username=username)
-    else:
-        oldmessages = []
-    trace_log_old(oldmessages)
-
-    before = (read_args.retriveArgs().before or arrow.now()).float_timestamp
-    after = await get_after(model_id, username, forced_after)
-    log_after_before(after, before, username)
-
-    filteredArray = get_filterArray(after, before, oldmessages)
-    splitArrays = get_split_array(filteredArray)
-    # Set charged sleeper
-    get_sleeper()
-    tasks = get_tasks(splitArrays, filteredArray, oldmessages, model_id, c)
-    data = await process_tasks(tasks, model_id)
-    progress_utils.messages_layout.visible = False
-    return data
+sleeper = None
 
 
 @run
 async def get_messages(model_id, username, forced_after=None, c=None):
     global after
+    after = await get_after(model_id, username, forced_after)
+    if len(read_args.retriveArgs().post_id or [])==0 or len(read_args.retriveArgs().post_id or [])>constants.getattr("MAX_MESSAGES_INDIVIDUAL_SEARCH"):
+        oldmessages=await get_old_messages(model_id,username)
+        before = (read_args.retriveArgs().before).float_timestamp
+        log_after_before(after, before, username)
+        filteredArray = get_filterArray(after, before, oldmessages)
+        splitArrays = get_split_array(filteredArray)
+        # Set charged sleeper
+        get_sleeper(reset=True)
+        tasks = get_tasks(splitArrays, filteredArray, oldmessages, model_id, c)
+        data = await process_tasks(tasks)
+    elif len(read_args.retriveArgs().post_id or [])<=constants.getattr("MAX_MESSAGES_INDIVIDUAL_SEARCH"):
+        data=process_individual(model_id)
+    update_check(data, model_id, after,API)
+    return data
 
-    oldmessages=None
+async def get_old_messages(model_id,username):
+    oldmessages = None
+    if read_full_after_scan_check(model_id,API):
+        return []
     if not settings.get_api_cache_disabled():
-        oldmessages=await get_messages_post_info(model_id=model_id, username=username)
+        oldmessages = await get_messages_post_info(model_id=model_id, username=username)
     else:
         oldmessages = []
+    seen = set()
+    oldmessages = [
+        post
+        for post in oldmessages
+        if post["post_id"] not in seen and not seen.add(post["post_id"])
+    ]
+    log.debug(f"[bold]Messages Cache[/bold] {len(oldmessages)} found")
     trace_log_old(oldmessages)
+    return oldmessages
 
-    before = (read_args.retriveArgs().before or arrow.now()).float_timestamp
-    after = await get_after(model_id, username, forced_after)
-    log_after_before(after, before, username)
-
-    log.info(
-        f"""
-Setting initial message scan date for {username} to {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))}
-[yellow]Hint: append ' --after 2000' to command to force scan of all messages + download of new files only[/yellow]
-[yellow]Hint: append ' --after 2000 --force-all' to command to force scan of all messages + download/re-download of all files[/yellow]
-
-        """
-    )
-
-    filteredArray = get_filterArray(after, before, oldmessages)
-    splitArrays = get_split_array(filteredArray)
-    with progress_utils.set_up_api_messages():
-        tasks = get_tasks(splitArrays, filteredArray, oldmessages, model_id, c)
-        return await process_tasks(tasks, model_id)
-
-
-async def process_tasks(tasks, model_id):
+def process_individual(model_id):
+    data=[]
+    for ele in read_args.retriveArgs().post_id:
+        try:
+            post=get_individual_messages_post(model_id,ele)
+            if not post.get("error"):
+                data.append(post)
+        except  Exception as E:
+            log.traceback_(E)
+            log.traceback_(traceback.format_exc())
+    return data   
+async def process_tasks(tasks):
     page_count = 0
     responseArray = []
-    overall_progress = progress_utils.overall_progress
-    page_task = overall_progress.add_task(
+    page_task = progress_utils.add_api_task(
         f"Message Content Pages Progress: {page_count}", visible=True
     )
     seen = set()
@@ -106,7 +107,7 @@ async def process_tasks(tasks, model_id):
                 result, new_tasks_batch = await task
                 new_tasks.extend(new_tasks_batch)
                 page_count = page_count + 1
-                overall_progress.update(
+                progress_utils.update_api_task(
                     page_task,
                     description=f"Message Content Pages Progress: {page_count}",
                 )
@@ -136,20 +137,20 @@ async def process_tasks(tasks, model_id):
                 continue
         tasks = new_tasks
 
-    overall_progress.remove_task(page_task)
+    progress_utils.remove_api_task(page_task)
     log.debug(
         f"{common_logs.FINAL_IDS.format('Messages')} {list(map(lambda x:x['id'],responseArray))}"
     )
     trace_log_task(responseArray)
     log.debug(f"{common_logs.FINAL_COUNT.format('Messages')} {len(responseArray)}")
 
-    set_check(responseArray, model_id, after)
     return responseArray
 
 
 def get_filterArray(after, before, oldmessages):
     log.debug(f"[bold]Messages Cache[/bold] {len(oldmessages)} found")
     oldmessages = list(filter(lambda x: x["created_at"] is not None, oldmessages))
+    oldmessages.append({"created_at": before, "post_id": None})
     oldmessages = sorted(
         oldmessages,
         key=lambda x: arrow.get(x["created_at"] or 0),
@@ -166,7 +167,7 @@ def get_filterArray(after, before, oldmessages):
 def get_i(oldmessages, before):
     """
     iterate through posts until a date less then or equal
-    to before , set index to -1 this point
+    to before , set index to -1 thtemp))nt
     """
     if before >= oldmessages[1].get("created_at"):
         return 0
@@ -216,20 +217,14 @@ def get_split_array(filteredArray):
 
 def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
     tasks = []
-    job_progress = progress_utils.messages_progress
-
+    # special case pass after to stop work
     if len(splitArrays) > 2:
         tasks.append(
             asyncio.create_task(
                 scrape_messages(
                     c,
                     model_id,
-                    job_progress=job_progress,
-                    message_id=(
-                        splitArrays[0][0].get("post_id")
-                        if len(filteredArray) != len(oldmessages)
-                        else None
-                    ),
+                    message_id=(splitArrays[0][0].get("post_id")),
                     required_ids=set([ele.get("created_at") for ele in splitArrays[0]]),
                 )
             )
@@ -240,7 +235,6 @@ def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
                     scrape_messages(
                         c,
                         model_id,
-                        job_progress=job_progress,
                         message_id=splitArrays[i - 1][-1].get("post_id"),
                         required_ids=set(
                             [ele.get("created_at") for ele in splitArrays[i]]
@@ -248,7 +242,7 @@ def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
                     )
                 )
             )
-            for i in range(1, len(splitArrays) - 1)
+            for i in range(1, len(splitArrays))
         ]
         # keeping grabbing until nothing left
         tasks.append(
@@ -256,11 +250,8 @@ def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
                 scrape_messages(
                     c,
                     model_id,
-                    job_progress=job_progress,
-                    message_id=splitArrays[-2][-1].get("post_id"),
-                    required_ids=set(
-                        [ele.get("created_at") for ele in splitArrays[-1]]
-                    ),
+                    message_id=splitArrays[-1][-1].get("post_id"),
+                    required_ids=set([after]),
                 )
             )
         )
@@ -271,8 +262,7 @@ def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
                 scrape_messages(
                     c,
                     model_id,
-                    job_progress=job_progress,
-                    required_ids=None,
+                    required_ids=set([after]),
                     message_id=(
                         splitArrays[0][0].get("post_id")
                         if len(filteredArray) != len(oldmessages)
@@ -288,34 +278,15 @@ def get_tasks(splitArrays, filteredArray, oldmessages, model_id, c):
                 scrape_messages(
                     c,
                     model_id,
-                    job_progress=job_progress,
                     message_id=None,
-                    required_ids=None,
+                    required_ids=set([after]),
                 )
             )
         )
     return tasks
 
 
-def set_check(unduped, model_id, after):
-    if not after:
-        seen = set()
-        all_posts = [
-            post
-            for post in cache.get(f"message_check_{model_id}", default=[]) + unduped
-            if post["id"] not in seen and not seen.add(post["id"])
-        ]
-        cache.set(
-            f"message_check_{model_id}",
-            list(all_posts),
-            expire=constants.getattr("THREE_DAY_SECONDS"),
-        )
-        cache.close()
-
-
-async def scrape_messages(
-    c, model_id, job_progress=None, message_id=None, required_ids=None
-) -> list:
+async def scrape_messages(c, model_id, message_id=None, required_ids=None) -> list:
     messages = None
     ep = (
         constants.getattr("messagesNextEP")
@@ -325,18 +296,18 @@ async def scrape_messages(
     url = ep.format(model_id, message_id)
     log.debug(f"{message_id if message_id else 'init'} {url}")
     new_tasks = []
-    await asyncio.sleep(1)
+    task = None
+
+    
     try:
         async with c.requests_async(url=url, sleeper=get_sleeper()) as r:
-            task = (
-                job_progress.add_task(
-                    f": Message ID-> {message_id if message_id else 'initial'}"
-                )
-                if job_progress
-                else None
+            task = progress_utils.add_api_job_task(
+                f"[Messages] Message ID-> {message_id if message_id else 'initial'}"
             )
             messages = (await r.json_())["list"]
-            log_id = f"offset messageid:{message_id if message_id else 'init messageid'}"
+            log_id = (
+                f"offset messageid:{message_id if message_id else 'init messageid'}"
+            )
             if not bool(messages):
                 log.debug(f"{log_id} -> no messages found")
                 return [], []
@@ -362,19 +333,8 @@ async def scrape_messages(
                 )
             )
 
-            if not required_ids:
-                new_tasks.append(
-                    asyncio.create_task(
-                        scrape_messages(
-                            c,
-                            model_id,
-                            job_progress=job_progress,
-                            message_id=messages[-1]["id"],
-                        )
-                    )
-                )
-
-            elif min(
+            # check if first value(newest) is less then then the required time
+            if max(
                 map(
                     lambda x: arrow.get(
                         x.get("createdAt", 0) or x.get("postedAt", 0)
@@ -399,31 +359,26 @@ async def scrape_messages(
                             scrape_messages(
                                 c,
                                 model_id,
-                                job_progress=job_progress,
                                 message_id=messages[-1]["id"],
                                 required_ids=required_ids,
                             )
                         )
                     )
-        return messages, new_tasks
     except asyncio.TimeoutError:
         raise Exception(f"Task timed out {url}")
     except Exception as E:
-        await asyncio.sleep(1)
+        
         log.traceback_(E)
         log.traceback_(traceback.format_exc())
         raise E
     finally:
-        (job_progress.remove_task(task) if job_progress and task is not None else None)
+        progress_utils.remove_api_job_task(task)
+    return messages, new_tasks
 
 
-def get_individual_post(model_id, postid):
-    with sessionManager.sessionManager(
+def get_individual_messages_post(model_id, postid):
+    with sessionManager.OFSessionManager(
         backend="httpx",
-        retries=constants.getattr("API_INDVIDIUAL_NUM_TRIES"),
-        wait_min=constants.getattr("OF_MIN_WAIT_API"),
-        wait_max=constants.getattr("OF_MAX_WAIT_API"),
-        new_request_auth=True,
     ) as c:
         with c.requests(
             url=constants.getattr("messageSPECIFIC").format(model_id, postid)
@@ -433,37 +388,38 @@ def get_individual_post(model_id, postid):
 
 
 async def get_after(model_id, username, forced_after=None):
-    if forced_after is not None:
-        return forced_after
-    elif not settings.get_after_enabled():
-        return 0
-    elif read_args.retriveArgs().after == 0:
-        return 0
-    elif read_args.retriveArgs().after:
-        return read_args.retriveArgs().after.float_timestamp
-    elif cache.get(f"{model_id}_scrape_messages"):
-        log.debug(
-            "Used --after previously. Scraping all messages required to make sure content is not missing"
-        )
-        return 0
+    prechecks=get_after_pre_checks(model_id,API, forced_after=forced_after)
+    if prechecks!=None:
+        return prechecks
     curr = await get_messages_media(model_id=model_id, username=username)
     if len(curr) == 0:
         log.debug("Setting date to zero because database is empty")
         return 0
+    curr_downloaded = await get_media_ids_downloaded_model(
+        model_id=model_id, username=username
+    )
+    missing_items = list(
+        filter(
+            lambda x: x.get("downloaded") != 1
+            and x.get("post_id") not in curr_downloaded
+            and x.get("unlocked") != 0,
+            curr,
+        )
+    )
     missing_items = list(
         filter(lambda x: x.get("downloaded") != 1 and x.get("unlocked") != 0, curr)
     )
     missing_items = list(
         sorted(missing_items, key=lambda x: arrow.get(x.get("posted_at") or 0))
     )
-    if len(missing_items) == 0:
+    log.info(f"Number of messages marked as downloaded {len(list(curr_downloaded))-len(list(missing_items))}")
+    log.info(f"Number of messages marked as missing/undownloaded {len(list(missing_items))}")
+    if len(list(missing_items)) == 0:
         log.debug(
             "Using newest db date because,all downloads in db are marked as downloaded"
         )
         return arrow.get(
-            await get_youngest_message_date(
-                model_id=model_id, username=username
-            )
+            await get_youngest_message_date(model_id=model_id, username=username)
         ).float_timestamp
     else:
         log.debug(
@@ -512,19 +468,22 @@ def trace_log_old(responseArray):
 
 
 def log_after_before(after, before, username):
-    log.info(f"Messages before = {arrow.get(before).format(constants.getattr('API_DATE_FORMAT'))}")
 
     log.info(
         f"""
-Setting initial message scan date for {username} to {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))}
+Setting Message scan range for {username} from {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))} to {arrow.get(before).format(constants.getattr('API_DATE_FORMAT'))}
+
 [yellow]Hint: append ' --after 2000' to command to force scan of all messages + download of new files only[/yellow]
 [yellow]Hint: append ' --after 2000 --force-all' to command to force scan of all messages + download/re-download of all files[/yellow]
 
         """
     )
 
-def get_sleeper():
+
+def get_sleeper(reset=False):
     global sleeper
     if not sleeper:
-        sleeper=sessionManager.SessionSleep(sleep=8)
+        sleeper = SessionSleep(sleep=None)
+    if reset:
+        sleeper.reset_sleep()
     return sleeper

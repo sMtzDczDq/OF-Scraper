@@ -61,6 +61,8 @@ def write_config(updated_config):
     if updated_config.get("config"):
         updated_config = updated_config["config"]
     p = common_paths.get_config_path()
+    if not p.parent.is_dir():
+        p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w") as f:
         f.write(json.dumps(updated_config, indent=4))
 
@@ -68,14 +70,7 @@ def write_config(updated_config):
 def auto_update_config(config: dict) -> dict:
     log.warning("Auto updating config...")
     new_config = schema.get_current_config_schema(config)
-
-    p = pathlib.Path(common_paths.get_config_path())
-    if not p.parent.is_dir():
-        p.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(p, "w") as f:
-        f.write(json.dumps(new_config, indent=4))
-
+    write_config(new_config)
     return new_config
 
 

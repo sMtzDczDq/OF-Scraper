@@ -1,6 +1,6 @@
 import shutil
 
-import ofscraper.utils.args.read as read_args
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.config.data as config_data
 import ofscraper.utils.constants as constants
 
@@ -54,30 +54,34 @@ def get_trunication(mediatype=None):
 
 
 def get_text_type(mediatype=None):
-    return (
-        read_args.retriveArgs().text_type or config_data.get_textType(mediatype=mediatype)
+    return read_args.retriveArgs().text_type or config_data.get_textType(
+        mediatype=mediatype
     )
 
 
 def get_space_replacer(mediatype=None):
-    return (
-        read_args.retriveArgs().space_replacer or config_data.get_spacereplacer(mediatype=mediatype)
+    return read_args.retriveArgs().space_replacer or config_data.get_spacereplacer(
+        mediatype=mediatype
     )
 
 
 def get_textlength(mediatype=None):
-    return (
-        read_args.retriveArgs().text_length or config_data.get_textlength(mediatype=mediatype)
+    return read_args.retriveArgs().text_length or config_data.get_textlength(
+        mediatype=mediatype
     )
+
 
 def get_cache_disabled():
     return (
         read_args.retriveArgs().no_cache or config_data.get_cache_mode() == "disabled"
     )
 
+
 def get_api_cache_disabled():
-     return (
-        read_args.retriveArgs().no_cache or read_args.retriveArgs().no_api_cache or config_data.get_cache_mode() == "api_disabled"
+    return (
+        read_args.retriveArgs().no_cache
+        or read_args.retriveArgs().no_api_cache
+        or config_data.get_cache_mode() == "api_disabled"
     )
 
 
@@ -85,8 +89,8 @@ def get_dynamic_rules():
     return read_args.retriveArgs().dynamic_rules or config_data.get_dynamic()
 
 
-def get_size_limit(mediatype=None):
-    return read_args.retriveArgs().size_max or config_data.get_filesize_limit(
+def get_size_max(mediatype=None):
+    return read_args.retriveArgs().size_max or config_data.get_filesize_max(
         mediatype=mediatype
     )
 
@@ -141,9 +145,15 @@ def get_log():
 
 
 def get_log_level():
-    if read_args.retriveArgs().log:
-        return read_args.retriveArgs().log
-    return constants.getattr("DEFAULT_LOG_LEVEL")
+    return read_args.retriveArgs().log or constants.getattr("DEFAULT_LOG_LEVEL")
+
+
+def get_discord_level():
+    return read_args.retriveArgs().discord
+
+
+def get_output_level():
+    return read_args.retriveArgs().output
 
 
 def get_mp4decrypt():
@@ -162,10 +172,8 @@ def get_ffmpeg():
     )
 
 
-def get_after_enabled():
-    return (
-        read_args.retriveArgs().after is not None or not config_data.get_disable_after()
-    )
+def auto_after_enabled():
+    return config_data.get_enable_after() and not get_cache_disabled() and not get_api_cache_disabled()
 
 
 def get_post_download_script():
@@ -173,3 +181,6 @@ def get_post_download_script():
         read_args.retriveArgs().download_script
         or config_data.get_post_download_script()
     )
+
+def get_hash(mediatype=None):
+    return config_data.get_hash(mediatype=mediatype)

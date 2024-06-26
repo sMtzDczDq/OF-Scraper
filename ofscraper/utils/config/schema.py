@@ -24,7 +24,7 @@ def get_current_config_schema(config: dict = None) -> dict:
             "truncation_default": data.get_truncation(config=config),
         },
         "download_options": {
-            "file_size_limit": data.get_filesize_limit(config=config),
+            "file_size_max": data.get_filesize_max(config=config),
             "file_size_min": data.get_filesize_min(config=config),
             "filter": data.get_filter(config=config),
             "auto_resume": data.get_part_file_clean(config=config),
@@ -58,7 +58,7 @@ def get_current_config_schema(config: dict = None) -> dict:
             "remove_hash_match": data.get_hash(config=config),
             "infinite_loop_action_mode": data.get_InfiniteLoop(config=config),
             "post_download_script": data.get_post_download_script(config=config),
-            "disable_auto_after": data.get_disable_after(config=config),
+            "enable_auto_after": data.get_enable_after(config=config),
             "default_user_list": data.get_default_userlist(config=config),
             "default_black_list": data.get_default_blacklist(config=config),
         },
@@ -71,6 +71,8 @@ def get_current_config_schema(config: dict = None) -> dict:
             "highlights": data.get_highlights_responsetype(config=config),
             "profile": data.get_profile_responsetype(config=config),
             "pinned": data.get_pinned_responsetype(config=config),
+            "streams": data.get_streams_responsetype(config=config),
+
         },
         "overwrites": {
             "audios": data.get_audios_overwrites(config=config),
@@ -83,12 +85,20 @@ def get_current_config_schema(config: dict = None) -> dict:
 
 
 # basic recursion for comparing nested keys
-def config_diff(config, schema=None):
+def config_diff(config):
     if config is None:
         return True
     if config.get("config"):
         config = config["config"]
-    schema = schema or get_current_config_schema()
+    schema = get_current_config_schema()
+    return config_diff_helper(config,schema)
+   
+
+
+def config_diff_helper(config,schema,key=None):
+    if key:
+        config=config[key]
+        schema=schema[key]
     diff = set(schema.keys()) - set(config.keys())
     if len(diff) > 0:
         return True
@@ -97,5 +107,5 @@ def config_diff(config, schema=None):
             continue
         elif not isinstance(config[key], dict):
             return True
-        elif config_diff(config[key], schema[key]):
+        elif config_diff_helper(config, schema,key):
             return True

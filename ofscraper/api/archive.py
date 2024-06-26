@@ -1,10 +1,14 @@
 r"""
                                                              
-  _____/ ____\______ ________________    ____   ___________ 
- /  _ \   __\/  ___// ___\_  __ \__  \  /  _ \_/ __ \_  __ \
-(  <_> )  |  \___ \\  \___|  | \// __ \(  <_> )  ___/|  | \/
- \____/|__| /____  >\___  >__|  (____  /\____/ \___  >__|   
-                 \/     \/           \/            \/         
+ _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+(  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
+| (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
+| |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
+| |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
+(_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
+                                                                                      
 """
 
 import asyncio
@@ -15,79 +19,82 @@ import traceback
 import arrow
 
 import ofscraper.api.common.logs as common_logs
-import ofscraper.utils.args.read as read_args
-import ofscraper.utils.cache as cache
+import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as constants
-import ofscraper.utils.progress as progress_utils
+import ofscraper.utils.live.screens as progress_utils
 import ofscraper.utils.settings as settings
+from ofscraper.db.operations_.media import (
+    get_archived_media,
+    get_media_ids_downloaded_model,
+)
+from ofscraper.db.operations_.posts import (
+    get_archived_post_info,
+    get_youngest_archived_date,
+)
 from ofscraper.utils.context.run_async import run
 from ofscraper.utils.logs.helpers import is_trace
-from ofscraper.db.operations_.posts import get_archived_post_info,get_youngest_archived_date
-from ofscraper.db.operations_.media import get_archived_media
+from ofscraper.api.common.after import get_after_pre_checks
+from ofscraper.api.common.cache.read import read_full_after_scan_check
+from ofscraper.api.common.check import update_check
+from ofscraper.api.common.timeline import process_individual
 
 
 log = logging.getLogger("shared")
+API="archived"
 
 
 sem = None
 
 
 @run
-async def get_archived_posts_progress(model_id, username, forced_after=None, c=None):
-
-    oldarchived = None
-    if not settings.get_api_cache_disabled():
-        oldarchived=await get_archived_post_info(model_id=model_id, username=username)
-    else:
-        oldarchived = []
-    trace_log_old(oldarchived)
-
-    log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
-    oldarchived = list(filter(lambda x: x is not None, oldarchived))
+async def get_archived_posts(model_id, username, forced_after=None, c=None):
     after = await get_after(model_id, username, forced_after)
-    after_log(username, after)
-    splitArrays = get_split_array(oldarchived, after)
-    tasks = get_tasks(splitArrays, c, model_id, after)
-    data = await process_tasks(tasks, model_id, after)
-    progress_utils.archived_layout.visible = False
+    if len(read_args.retriveArgs().post_id or [])==0 or len(read_args.retriveArgs().post_id or [])>constants.getattr("MAX_ARCHIVED_INDIVIDUAL_SEARCH"):
+        time_log(username, after)
+        splitArrays = await get_split_array(model_id,username, after)
+        tasks = get_tasks(splitArrays, c, model_id, after)
+        data = await process_tasks(tasks)
+    elif len(read_args.retriveArgs().post_id or [])<=constants.getattr("MAX_ARCHIVED_INDIVIDUAL_SEARCH"):
+        data=process_individual()  
+    update_check(data, model_id, after,API)
     return data
 
-
-@run
-async def get_archived_posts(model_id, username, forced_after=None, c=None):
+async def get_oldarchived(model_id,username):
+    oldarchived = None
+    if read_full_after_scan_check(model_id,API):
+        return []
     if not settings.get_api_cache_disabled():
-        oldarchived=await get_archived_post_info(model_id=model_id, username=username)
+        oldarchived = await get_archived_post_info(model_id=model_id, username=username)
     else:
         oldarchived = []
-    trace_log_old(oldarchived)
-
-    log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
+    seen = set()
+    oldarchived = [
+        post
+        for post in oldarchived
+        if post["post_id"] not in seen and not seen.add(post["post_id"])
+    ]
     oldarchived = list(filter(lambda x: x is not None, oldarchived))
-    after = await get_after(model_id, username, forced_after)
-    after_log(username, after)
-    with progress_utils.set_up_api_archived():
-        splitArrays = get_split_array(oldarchived, after)
-        tasks = get_tasks(splitArrays, c, model_id, after)
-        return await process_tasks(tasks, model_id, after)
+    log.debug(f"[bold]Archived Cache[/bold] {len(oldarchived)} found")
+    trace_log_old(oldarchived)
+    return oldarchived
 
-
-async def process_tasks(tasks, model_id, after):
+async def process_tasks(tasks):
     responseArray = []
     page_count = 0
-    overall_progress = progress_utils.overall_progress
 
-    page_task = overall_progress.add_task(
+    page_task = progress_utils.add_api_task(
         f"Archived Content Pages Progress: {page_count}", visible=True
     )
     seen = set()
     while tasks:
         new_tasks = []
+
         for task in asyncio.as_completed(tasks):
             try:
                 result, new_tasks_batch = await task
                 new_tasks.extend(new_tasks_batch)
                 page_count = page_count + 1
-                overall_progress.update(
+                progress_utils.update_api_task(
                     page_task,
                     description=f"Archived Content Pages Progress: {page_count}",
                 )
@@ -117,21 +124,20 @@ async def process_tasks(tasks, model_id, after):
                 log.traceback_(E)
                 log.traceback_(traceback.format_exc())
                 continue
-            tasks = new_tasks
+        tasks = new_tasks
 
-    overall_progress.remove_task(page_task)
+    progress_utils.remove_api_task(page_task)
 
     log.debug(
         f"{common_logs.FINAL_IDS.format('Archived')} {list(map(lambda x:x['id'],responseArray))}"
     )
     trace_log_task(responseArray)
     log.debug(f"{common_logs.FINAL_COUNT.format('Archived')} {len(responseArray)}")
-
-    set_check(responseArray, model_id, after)
     return responseArray
 
 
-def get_split_array(oldarchived, after):
+async def get_split_array(model_id,username, after):
+    oldarchived=await get_oldarchived(model_id,username)
     if len(oldarchived) == 0:
         return []
     min_posts = max(
@@ -152,14 +158,13 @@ def get_split_array(oldarchived, after):
 
 def get_tasks(splitArrays, c, model_id, after):
     tasks = []
-    job_progress = progress_utils.archived_progress
+    before = arrow.get(read_args.retriveArgs().before or arrow.now()).float_timestamp
     if len(splitArrays) > 2:
         tasks.append(
             asyncio.create_task(
                 scrape_archived_posts(
                     c,
                     model_id,
-                    job_progress=job_progress,
                     required_ids=set([ele.get("created_at") for ele in splitArrays[0]]),
                     timestamp=splitArrays[0][0].get("created_at"),
                     offset=True,
@@ -172,7 +177,6 @@ def get_tasks(splitArrays, c, model_id, after):
                     scrape_archived_posts(
                         c,
                         model_id,
-                        job_progress=job_progress,
                         required_ids=set(
                             [ele.get("created_at") for ele in splitArrays[i]]
                         ),
@@ -189,9 +193,9 @@ def get_tasks(splitArrays, c, model_id, after):
                 scrape_archived_posts(
                     c,
                     model_id,
-                    job_progress=job_progress,
                     timestamp=splitArrays[-1][0].get("created_at"),
                     offset=True,
+                    required_ids=set([before]),
                 )
             )
         )
@@ -202,9 +206,9 @@ def get_tasks(splitArrays, c, model_id, after):
                 scrape_archived_posts(
                     c,
                     model_id,
-                    job_progress=job_progress,
                     timestamp=splitArrays[0][0].get("created_at"),
                     offset=True,
+                    required_ids=set([before]),
                 )
             )
         )
@@ -213,59 +217,44 @@ def get_tasks(splitArrays, c, model_id, after):
         tasks.append(
             asyncio.create_task(
                 scrape_archived_posts(
-                    c, model_id, job_progress=job_progress, timestamp=after, offset=True
+                    c,
+                    model_id,
+                    timestamp=after,
+                    offset=True,
+                    required_ids=set([before]),
                 )
             )
         )
     return tasks
 
-
-def set_check(unduped, model_id, after):
-    if not after:
-        seen = set()
-        all_posts = [
-            post
-            for post in cache.get(f"archived_check_{model_id}", default=[]) + unduped
-            if post["id"] not in seen and not seen.add(post["id"])
-        ]
-
-        cache.set(
-            f"archived_check_{model_id}",
-            all_posts,
-            expire=constants.getattr("THREE_DAY_SECONDS"),
-        )
-        cache.close()
-
-
 async def get_after(model_id, username, forced_after=None):
-    if forced_after is not None:
-        return forced_after
-    elif not settings.get_after_enabled():
-        return 0
-    elif read_args.retriveArgs().after == 0:
-        return 0
-    elif read_args.retriveArgs().after:
-        return read_args.retriveArgs().after.float_timestamp
-
-    elif cache.get(f"{model_id}_full_archived_scrape"):
-        log.info(
-            "Used --after previously. Scraping all archived posts required to make sure content is not missing"
-        )
-        return 0
+    prechecks=get_after_pre_checks(model_id,API, forced_after=forced_after)
+    if prechecks!=None:
+        return prechecks
     curr = await get_archived_media(model_id=model_id, username=username)
     if len(curr) == 0:
         log.debug("Setting date to zero because database is empty")
         return 0
-    missing_items = list(filter(lambda x: x.get("downloaded") != 1, curr))
+    curr_downloaded = await get_media_ids_downloaded_model(
+        model_id=model_id, username=username
+    )
+    missing_items = list(
+        filter(
+            lambda x: x.get("downloaded") != 1
+            and x.get("post_id") not in curr_downloaded
+            and x.get("unlocked") != 0,
+            curr,
+        )
+    )
+    log.info(f"Number of archived items marked as downloaded {len(list(curr_downloaded))-len(list(missing_items))}")
+    log.info(f"Number of archived items marked as missing/undownloaded {len(list(missing_items))}")
     missing_items = list(sorted(missing_items, key=lambda x: x.get("posted_at") or 0))
     if len(missing_items) == 0:
         log.debug(
             "Using newest db date because,all downloads in db marked as downloaded"
         )
         return arrow.get(
-            await get_youngest_archived_date(
-                model_id=model_id, username=username
-            )
+            await get_youngest_archived_date(model_id=model_id, username=username)
         ).float_timestamp
     else:
         log.debug(
@@ -275,15 +264,14 @@ async def get_after(model_id, username, forced_after=None):
 
 
 async def scrape_archived_posts(
-    c, model_id, job_progress=None, timestamp=None, required_ids=None, offset=False
+    c, model_id, timestamp=None, required_ids=None, offset=False
 ) -> list:
     global sem
     posts = None
     if timestamp and (
-        float(timestamp)
-        > (read_args.retriveArgs().before or arrow.now()).float_timestamp
+        float(timestamp) > (read_args.retriveArgs().before).float_timestamp
     ):
-        return []
+        return [], []
     timestamp = float(timestamp) - 1000 if timestamp and offset else timestamp
     url = (
         constants.getattr("archivedNextEP").format(model_id, str(timestamp))
@@ -291,22 +279,22 @@ async def scrape_archived_posts(
         else constants.getattr("archivedEP").format(model_id)
     )
     log.debug(url)
+
     new_tasks = []
+    posts = []
     try:
-        task = (
-            job_progress.add_task(
-                f"Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
-                visible=True,
-            )
-            if job_progress
-            else None
+        task = progress_utils.add_api_job_task(
+            f"[Archived] Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
+            visible=True,
         )
-        async with c.requests_async(url) as r:
+        async with c.requests_async(url,forced=constants.getattr("API_FORCE_KEY")) as r:
+
             posts = (await r.json_())["list"]
             log_id = f"timestamp:{arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}"
             if not bool(posts):
                 log.debug(f"{log_id} -> no posts found")
                 return [], []
+
             log.debug(f"{log_id} -> number of archived post found {len(posts)}")
             log.debug(
                 f"{log_id} -> first date {posts[0].get('createdAt') or posts[0].get('postedAt')}"
@@ -329,28 +317,16 @@ async def scrape_archived_posts(
                 )
             )
 
-            if not required_ids:
-                new_tasks.append(
-                    asyncio.create_task(
-                        scrape_archived_posts(
-                            c,
-                            model_id,
-                            job_progress=job_progress,
-                            timestamp=posts[-1]["postedAtPrecise"],
-                            offset=False,
-                        )
-                    )
-                )
-            elif max(map(lambda x: float(x["postedAtPrecise"]), posts)) >= max(
+            if max(map(lambda x: float(x["postedAtPrecise"]), posts)) >= max(
                 required_ids
             ):
                 pass
             elif float(timestamp or 0) >= max(required_ids):
                 pass
             else:
-                log.debug(f"{log_id} Required before {required_ids}")
+                log.debug(f"{log_id} Required before change:  {required_ids}")
                 [required_ids.discard(float(ele["postedAtPrecise"])) for ele in posts]
-                log.debug(f"{log_id} Required after {required_ids}")
+                log.debug(f"{log_id} Required after change: {required_ids}")
 
                 if len(required_ids) > 0:
                     new_tasks.append(
@@ -358,23 +334,21 @@ async def scrape_archived_posts(
                             scrape_archived_posts(
                                 c,
                                 model_id,
-                                job_progress=job_progress,
                                 timestamp=posts[-1]["postedAtPrecise"],
                                 required_ids=required_ids,
                                 offset=False,
                             )
                         )
                     )
-            return posts, new_tasks
     except asyncio.TimeoutError as _:
         raise Exception(f"Task timed out {url}")
     except Exception as E:
         log.traceback_(E)
         log.traceback_(traceback.format_exc())
         raise E
-
     finally:
-        job_progress.remove_task(task) if job_progress and task else None
+        progress_utils.remove_api_job_task(task)
+
     return posts, new_tasks
 
 
@@ -417,10 +391,10 @@ def trace_log_old(responseArray):
             break  # Exit the loop if we've processed all elements
 
 
-def after_log(username, after):
+def time_log(username, after):
     log.info(
         f"""
-Setting initial archived scan date for {username} to {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))}
+Setting archived scan range for {username} from {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))} to {arrow.get(read_args.retriveArgs().before or arrow.now()).format((constants.getattr('API_DATE_FORMAT')))}
 [yellow]Hint: append ' --after 2000' to command to force scan of all archived posts + download of new files only[/yellow]
 [yellow]Hint: append ' --after 2000 --force-all' to command to force scan of all archived posts + download/re-download of all files[/yellow]
 

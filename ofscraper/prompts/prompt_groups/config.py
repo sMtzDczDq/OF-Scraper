@@ -60,7 +60,7 @@ def funct(prompt_):
     images: optional overwrties from images
     -----------------------------------
     [Download Options]
-    file_size_limit: max size allowed for download
+    file_size_max: max size allowed for download
     file_size_min: min size required for download
     filter: which media to download
     auto_resume: toggle for resuming downloads
@@ -91,7 +91,7 @@ def funct(prompt_):
     sanitize_text: toggle for cleaning text for db
     temp_dir: directory for storing temp files
     infinite_loop_action_mode: toggle for infinite loop via action mode
-    disable_auto_after: toggle for safe --after usage
+    enable_auto_after: whether to dynamically set --after: default True
     default_user_list: default user list for --action
     default_black_list: default black list for --action
     remove_hash_match: remove files if hash matches
@@ -127,8 +127,8 @@ def download_config():
         *[
             {
                 "type": "input",
-                "name": "file_size_limit",
-                "message": "file_size_limit: ",
+                "name": "file_size_max",
+                "message": "file_size_max: ",
                 "option_instruction": """
 File size limit
 Input can be int representing bytes
@@ -136,7 +136,7 @@ or human readable such as 10mb
 
 Enter 0 for no limit
 """,
-                "default": str(data.get_filesize_limit()),
+                "default": str(data.get_filesize_max()),
             },
             {
                 "type": "input",
@@ -466,14 +466,14 @@ def advanced_config() -> dict:
                 "name": "dynamic-mode-default",
                 "message": "What would you like to use for dynamic rules",
                 "default": data.get_dynamic(),
-                "choices": ["deviint", "digitalcriminals", "sneaky"],
+                "choices": constants.DYNAMIC_OPTIONS,
             },
             {
                 "type": "list",
                 "name": "cache-mode",
                 "message": "sqlite should be fine unless your using a network drive\nSee https://grantjenks.com/docs/diskcache/tutorial.html#caveats ",
                 "default": data.cache_mode_helper(),
-                "choices": ["sqlite", "json", "disabled","api_disabled"],
+                "choices": ["sqlite", "json", "disabled", "api_disabled"],
             },
             {
                 "type": "list",
@@ -551,9 +551,9 @@ def advanced_config() -> dict:
             },
             {
                 "type": "list",
-                "name": "disable_auto_after",
-                "message": "Disable After Check",
-                "default": data.get_disable_after(),
+                "name": "enable_auto_after",
+                "message": "Dynamically sets --after based on db and cache",
+                "default": data.get_enable_after(),
                 "choices": [
                     Choice(True, "Yes"),
                     Choice(False, "No"),
