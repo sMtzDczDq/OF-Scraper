@@ -11,11 +11,9 @@ from functools import partial
 
 import aioprocessing
 import more_itertools
-import psutil
 from aioprocessing import AioPipe
 
-import ofscraper.download.shared.general as common
-import ofscraper.download.shared.globals as common_globals
+import ofscraper.download.utils.globals as common_globals
 import ofscraper.models.selector as selector
 import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
@@ -23,25 +21,34 @@ import ofscraper.utils.console as console
 import ofscraper.utils.context.exit as exit
 import ofscraper.utils.dates as dates
 import ofscraper.utils.live.screens as progress_utils
+import ofscraper.utils.live.updater as progress_updater
+
 import ofscraper.utils.logs.logger as logger
 import ofscraper.utils.logs.other as other_logs
 import ofscraper.utils.logs.stdout as stdout_logs
 import ofscraper.utils.manager as manager_
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.system as system
+import ofscraper.utils.system.priority as priority
+
+from ofscraper.classes.sessionmanager.download import download_session
 from ofscraper.download.alt_downloadbatch import alt_download
 from ofscraper.download.main_downloadbatch import main_download
-from ofscraper.classes.sessionmanager.download import download_session
-from ofscraper.download.shared.general import (
-    get_medialog,
-    subProcessVariableInit,
+from ofscraper.download.utils.general import get_medialog, subProcessVariableInit
+from ofscraper.download.utils.log import (
+    final_log,
+    final_log_text,
+    log_download_progress,
+    set_media_log,
 )
-from ofscraper.download.shared.log import final_log, final_log_text   ,log_download_progress,set_media_log
-from ofscraper.download.shared.metadata import metadata
-from ofscraper.download.shared.paths.paths import addGlobalDir, setDirectoriesDate
-from ofscraper.download.shared.progress.progress import convert_num_bytes
+from ofscraper.download.utils.metadata import metadata
+from ofscraper.download.utils.paths.paths import addGlobalDir, setDirectoriesDate
+from ofscraper.download.utils.progress.progress import convert_num_bytes
+from ofscraper.download.utils.send.message import send_msg,send_msg_alt
+from ofscraper.download.utils.workers import get_max_workers
 from ofscraper.utils.context.run_async import run
-from ofscraper.download.shared.workers import get_max_workers
+import ofscraper.utils.constants as constants
+
 
 platform_name = platform.system()
 
@@ -66,6 +73,7 @@ def process_dicts(username, model_id, filtered_medialist):
             split_val = min(4, num_proc)
             log.debug(f"Number of download threads: {num_proc}")
             connect_tuples = [AioPipe() for _ in range(num_proc)]
+            alt_connect_tuples = [AioPipe() for _ in range(num_proc)]
             shared = list(
                 more_itertools.chunked([i for i in range(num_proc)], split_val)
             )
@@ -94,6 +102,7 @@ def process_dicts(username, model_id, filtered_medialist):
                         logqueues_[i // split_val],
                         otherqueues_[i // split_val],
                         connect_tuples[i][1],
+                        alt_connect_tuples[i][1],
                         dates.getLogDate(),
                         selector.get_ALL_SUBS_DICT(),
                         read_args.retriveArgs(),
@@ -102,7 +111,7 @@ def process_dicts(username, model_id, filtered_medialist):
                 for i in range(num_proc)
             ]
             [process.start() for process in processes]
-            task1 = progress_utils.add_download_task(
+            task1 = progress_updater.add_download_task(
                 common_globals.desc.format(
                     p_count=0,
                     v_count=0,
@@ -175,7 +184,7 @@ def process_dicts(username, model_id, filtered_medialist):
                     if process.is_alive():
                         process.terminate()
                 time.sleep(0.5)
-            progress_utils.remove_download_task(task1)
+            progress_updater.remove_download_task(task1)
             setDirectoriesDate()
     except KeyboardInterrupt as E:
         try:
@@ -203,17 +212,33 @@ def process_dicts(username, model_id, filtered_medialist):
     return final_log_text(username)
 
 
+
+# async def download_progress(pipe_):
+#     # shared globals
+#     sleep_time = constants.getattr("JOB_MULTI_PROGRESS_THREAD_SLEEP")
+#     while True:
+#         time.sleep(sleep_time)
+#         try:
+#             results = pipe_.recv()
+#             if not isinstance(results, list):
+#                 results = [results]
+#             for result in results:
+#                 if result is None:
+#                     return
+#                 await ajob_progress_helper(result)
+#         except Exception as e:
+#             print(e)
+
+
 def queue_process(pipe_, task1, total):
     count = 0
     # shared globals
-
     while True:
         if count == 1:
             break
         results = pipe_.recv()
         if not isinstance(results, list):
             results = [results]
-
         for result in results:
             try:
                 if isinstance(result, list) or isinstance(result, tuple):
@@ -237,7 +262,7 @@ def queue_process(pipe_, task1, total):
                         elif media_type == "forced_skipped":
                             common_globals.forced_skipped += 1
                         log_download_progress(media_type)
-                        progress_utils.update_download_task(
+                        progress_updater.update_download_task(
                             task1,
                             description=common_globals.desc.format(
                                 p_count=common_globals.photo_count,
@@ -290,6 +315,7 @@ def process_dict_starter(
     p_logqueue_,
     p_otherqueue_,
     pipe_,
+    pipe2_,
     dateDict,
     userNameList,
     argsCopy,
@@ -298,18 +324,20 @@ def process_dict_starter(
         dateDict,
         userNameList,
         pipe_,
+        pipe2_,
         logger.get_shared_logger(
             main_=p_logqueue_, other_=p_otherqueue_, name=f"shared_{os.getpid()}"
         ),
         argsCopy,
     )
-    setpriority()
+    priority.setpriority()
+    system.setNameAlt()
     plat = platform.system()
     if plat == "Linux":
         import uvloop
 
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-   
+
     try:
         process_dicts_split(username, model_id, ele)
     except KeyboardInterrupt as E:
@@ -325,56 +353,47 @@ def process_dict_starter(
 
 def job_progress_helper(funct):
     try:
-        with common_globals.chunk_lock:
-            funct()
+        funct()
+    #probably handle by other thread
+    except KeyError:
+        pass
     except Exception as E:
         logging.getLogger("shared").debug(E)
 
 
-def setpriority():
-    os_used = platform.system()
-    process = psutil.Process(
-        os.getpid()
-    )  # Set highest priority for the python script for the CPU
-    if os_used == "Windows":  # Windows (either 32-bit or 64-bit)
-        process.ionice(psutil.IOPRIO_NORMAL)
-        process.nice(psutil.NORMAL_PRIORITY_CLASS)
+async def ajob_progress_helper(funct):
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+                None,
+                funct,
+        )
+    #probably handle by other thread
+    except KeyError:
+        pass
+    except Exception as E:
+        logging.getLogger("shared").debug(E)
 
-    elif os_used == "Linux":  # linux
-        process.ionice(psutil.IOPRIO_CLASS_BE)
-        process.nice(5)
-    else:  # MAC OS X or other
-        process.nice(10)
-
-
-async def consumer(queue):
+async def consumer(lock,aws):
     while True:
-        data = await queue.get()
-        if data==None:
-            queue.task_done()
+        async with lock:
+            if not(bool(aws)):
+                break
+            data = aws.pop()
+        if data is None:
             break
         else:
             try:
-                pack= await download(*data)
+                pack = await download(*data)
                 common_globals.log.debug(f"unpack {pack} count {len(pack)}")
                 media_type, num_bytes_downloaded = pack
-                await common.send_msg((media_type, num_bytes_downloaded, 0))
+                await send_msg((media_type, num_bytes_downloaded, 0))
             except Exception as e:
-                    common_globals.log.info(f"Download Failed because\n{e}")
-                    common_globals.log.traceback_(traceback.format_exc())
-                    media_type = "skipped"
-                    num_bytes_downloaded = 0
-                    await common.send_msg((media_type, num_bytes_downloaded, 0))
-            queue.task_done()
+                common_globals.log.info(f"Download Failed because\n{e}")
+                common_globals.log.traceback_(traceback.format_exc())
+                media_type = "skipped"
+                num_bytes_downloaded = 0
+                await send_msg((media_type, num_bytes_downloaded, 0))
             await asyncio.sleep(1)
-
-
-async def producer(queue, aws,concurrency_limit):
-    for data in aws:
-        await queue.put(data)
-    for _ in range(concurrency_limit):
-        await queue.put(None)
-    await queue.join()  # Wait for all tasks to finish
 
 
 @run
@@ -385,7 +404,7 @@ async def process_dicts_split(username, model_id, medialist):
     other_logs.start_other_thread(
         input_=common_globals.log.handlers[1].queue, name=str(os.getpid()), count=1
     )
-    
+
     medialist = list(medialist)
     # This need to be here: https://stackoverflow.com/questions/73599594/asyncio-works-in-python-3-10-but-not-in-python-3-8
 
@@ -403,35 +422,32 @@ async def process_dicts_split(username, model_id, medialist):
     ) as c:
         for ele in medialist:
             aws.append((c, ele, model_id, username))
-        concurrency_limit= get_max_workers()
-        queue = asyncio.Queue(maxsize=concurrency_limit)
-        consumers = [asyncio.create_task(consumer(queue)) for _ in range(concurrency_limit)]
-        await producer(queue, aws,concurrency_limit)
+        concurrency_limit = get_max_workers()
+        lock = asyncio.Lock()
+        consumers = [
+            asyncio.create_task(consumer(lock,aws)) for _ in range(concurrency_limit)
+        ]
+
         await asyncio.gather(*consumers)
     common_globals.log.debug(f"{pid_log_helper()} download process thread closing")
     # send message directly
-    await asyncio.get_event_loop().run_in_executor(
-        common_globals.thread, cache.close
-    )
+    await asyncio.get_event_loop().run_in_executor(common_globals.thread, cache.close)
     common_globals.thread.shutdown()
     common_globals.log.handlers[0].queue.put("None")
     common_globals.log.handlers[1].queue.put("None")
     common_globals.log.debug("other thread closed")
-    await common.send_msg(common_globals.localDirSet)
-    await common.send_msg(None)
+    await send_msg({"dir_update": common_globals.localDirSet})
+    await send_msg(None)
+    await send_msg_alt(None)
 
 
 def pid_log_helper():
     return f"PID: {os.getpid()}"
 
 
-
-
-
-
 async def download(c, ele, model_id, username):
-    #set logs for mpd
-    set_media_log(common_globals.log,ele)
+    # set logs for mpd
+    set_media_log(common_globals.log, ele)
     templog_ = logger.get_shared_logger(
         name=str(ele.id), main_=aioprocessing.Queue(), other_=aioprocessing.Queue()
     )
@@ -444,9 +460,7 @@ async def download(c, ele, model_id, username):
         elif ele.mpd:
             return await alt_download(c, ele, username, model_id)
     except Exception as e:
-        common_globals.log.traceback_(
-            f"{get_medialog(ele)} Download Failed\n{e}"
-        )
+        common_globals.log.traceback_(f"{get_medialog(ele)} Download Failed\n{e}")
         common_globals.log.traceback_(
             f"{get_medialog(ele)} exception {traceback.format_exc()}"
         )

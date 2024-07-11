@@ -20,6 +20,8 @@ import ofscraper.classes.sessionmanager.ofsession as sessionManager
 import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as constants
 import ofscraper.utils.live.screens as progress_utils
+import ofscraper.utils.live.updater as progress_updater
+from ofscraper.utils.live.updater import add_userlist_task
 from ofscraper.utils.context.run_async import run
 from ofscraper.utils.logs.helpers import is_trace
 
@@ -87,7 +89,7 @@ async def get_lists():
         sem=constants.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         tasks.append(asyncio.create_task(scrape_for_list(c)))
-        page_task = progress_utils.add_userlist_task(
+        page_task = add_userlist_task(
             f"UserList Pages Progress: {page_count}", visible=True
         )
         while tasks:
@@ -97,7 +99,7 @@ async def get_lists():
                     result, new_tasks_batch = await task
                     new_tasks.extend(new_tasks_batch)
                     page_count = page_count + 1
-                    progress_utils.update_userlist_task(
+                    progress_updater.update_userlist_task(
                         page_task,
                         description=f"UserList Pages Progress: {page_count}",
                     )
@@ -107,7 +109,7 @@ async def get_lists():
                     log.traceback_(traceback.format_exc())
                     continue
             tasks = new_tasks
-    progress_utils.remove_userlist_task(page_task)
+    progress_updater.remove_userlist_task(page_task)
     trace_log_list(output)
 
     log.debug(f"[bold]lists name count without Dupes[/bold] {len(output)} found")
@@ -140,11 +142,13 @@ async def scrape_for_list(c, offset=0):
     url = constants.getattr("listEP").format(offset)
     try:
         attempt.set(attempt.get(0) + 1)
-        task = progress_utils.add_userlist_job_task(
+        task = progress_updater.add_userlist_job_task(
             f" : getting lists offset -> {offset}",
             visible=True,
         )
-        async with c.requests_async(url=url,forced=constants.getattr("API_FORCE_KEY")) as r:
+        async with c.requests_async(
+            url=url, forced=constants.getattr("API_FORCE_KEY")
+        ) as r:
             data = await r.json_()
             out_list = data["list"] or []
             log.debug(
@@ -172,7 +176,7 @@ async def scrape_for_list(c, offset=0):
         raise E
 
     finally:
-        progress_utils.remove_userlist_job_task(task)
+        progress_updater.remove_userlist_job_task(task)
     return out_list, new_tasks
 
 
@@ -185,7 +189,7 @@ async def get_list_users(lists):
         sem=constants.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         [tasks.append(asyncio.create_task(scrape_list_members(c, id))) for id in lists]
-        page_task = progress_utils.add_userlist_task(
+        page_task = add_userlist_task(
             f"UserList Users Pages Progress: {page_count}", visible=True
         )
         while tasks:
@@ -195,7 +199,7 @@ async def get_list_users(lists):
                     result, new_tasks_batch = await task
                     new_tasks.extend(new_tasks_batch)
                     page_count = page_count + 1
-                    progress_utils.update_userlist_task(
+                    progress_updater.update_userlist_task(
                         page_task,
                         description=f"UserList Users Pages Progress: {page_count}",
                     )
@@ -206,7 +210,7 @@ async def get_list_users(lists):
                     continue
             tasks = new_tasks
 
-    progress_utils.remove_userlist_task(page_task)
+    progress_updater.remove_userlist_task(page_task)
     outdict = {}
     for ele in output:
         outdict[ele["id"]] = ele
@@ -242,12 +246,14 @@ async def scrape_list_members(c, item, offset=0):
     url = constants.getattr("listusersEP").format(item.get("id"), offset)
     try:
         attempt.set(attempt.get(0) + 1)
-        task = progress_utils.add_userlist_job_task(
+        task = progress_updater.add_userlist_job_task(
             f" : offset -> {offset} + list name -> {item.get('name')}",
             visible=True,
         )
 
-        async with c.requests_async(url=url,forced=constants.getattr("API_FORCE_KEY")) as r:
+        async with c.requests_async(
+            url=url, forced=constants.getattr("API_FORCE_KEY")
+        ) as r:
             log_id = f"offset:{offset} list:{item.get('name')} =>"
             data = await r.json_()
             users = data.get("list") or []
@@ -285,5 +291,5 @@ async def scrape_list_members(c, item, offset=0):
         raise E
 
     finally:
-        progress_utils.remove_userlist_job_task(task)
+        progress_updater.remove_userlist_job_task(task)
     return users, new_tasks

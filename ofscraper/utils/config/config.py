@@ -15,9 +15,9 @@ import logging
 
 import ofscraper.prompts.prompts as prompts
 import ofscraper.utils.binaries as binaries
-import ofscraper.utils.config.context as config_context
 import ofscraper.utils.config.file as config_file
 import ofscraper.utils.config.schema as schema
+import ofscraper.utils.config.utils.context as config_context
 import ofscraper.utils.console as console_
 
 console = console_.get_shared_console()
@@ -61,16 +61,6 @@ def update_config_full(config_, updated_config):
     log.debug(f"new config: {config}")
     config_file.write_config(config)
     return config
-
-
-def update_mp4decrypt():
-    global config
-    config = {"config": read_config()}
-    if prompts.auto_download_mp4_decrypt() == "Yes":
-        config["config"]["mp4decrypt"] = binaries.mp4decrypt_download()
-    else:
-        config["config"]["mp4decrypt"] = prompts.mp4_prompt()
-    config_file.write_config(config)
 
 
 def update_ffmpeg():

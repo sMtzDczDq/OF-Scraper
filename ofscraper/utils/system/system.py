@@ -1,14 +1,11 @@
 import asyncio
-import json
 import logging
+import multiprocessing
 import os
 import platform
-import subprocess
 import sys
 
 import multiprocess
-import multiprocessing
-import aioprocessing
 import psutil
 from setproctitle import setproctitle
 
@@ -35,20 +32,6 @@ def getcpu_count():
         return psutil.cpu_count()
 
 
-def speed_test():
-    r = subprocess.Popen(
-        ["speedtest-cli", "--bytes", "--no-upload", "--json", "--secure"],
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-    )
-    out = ""
-    for stdout_line in iter(r.stdout.readline, ""):
-        out = out + stdout_line
-    r.wait()
-    speed = json.loads(out.strip())["download"]
-    return speed
-
-
 def getOpenFiles(unique=True):
     match = set()
     out = []
@@ -65,23 +48,23 @@ def getOpenFiles(unique=True):
 def set_mulitproc_start_type():
     plat = platform.system()
     if is_frozen():
-        f_method="spawn"
+        f_method = "spawn"
         multiprocess.set_start_method(f_method)
         multiprocessing.set_start_method(f_method)
     elif plat == "Darwin":
-        d_method="spawn"
+        d_method = "spawn"
         multiprocess.set_start_method(d_method)
         multiprocessing.set_start_method(d_method)
     elif plat == "Windows":
-        w_method="spawn"
+        w_method = "spawn"
         multiprocess.set_start_method(w_method)
         multiprocessing.set_start_method(w_method)
     else:
-        o_method="spawn"
+        o_method = "forkserver"
         multiprocess.set_start_method(o_method)
         multiprocessing.set_start_method(o_method)
-    #additional for mac
-    if plat=="Darwin":
+    # additional for mac
+    if plat == "Darwin":
         os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
         os.environ["no_proxy"] = "*"
 
@@ -110,11 +93,31 @@ def get_dupe_ofscraper():
             pass
     log.debug(f"Duplicated Processes {found}")
     return found
+def get_all_ofscrapers_processes():
+    found=[]
+    for proc in psutil.process_iter():
+        try:
+            if (
+                proc
+                and (proc.name() == "OF-Scraper" or proc.name()=="OF-Scraper_")
+            ):
+                found.append(proc)
+        except psutil.NoSuchProcess:
+            pass
+    return found
 
 
 def setName():
     log = logging.getLogger("shared")
     try:
         setproctitle("OF-Scraper")
+    except Exception as E:
+        log.debug(E)
+
+
+def setNameAlt():
+    log = logging.getLogger("shared")
+    try:
+        setproctitle("OF-Scraper_")
     except Exception as E:
         log.debug(E)

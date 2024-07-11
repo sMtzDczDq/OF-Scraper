@@ -25,6 +25,3 @@ search_entire_list_option = click.option(
     default=False,
     is_flag=True,
 )
-
-
-

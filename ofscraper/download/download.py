@@ -6,14 +6,13 @@ import traceback
 import ofscraper.download.downloadbatch as batchdownloader
 import ofscraper.download.downloadnormal as normaldownloader
 import ofscraper.utils.args.accessors.read as read_args
-import ofscraper.utils.config.data as config_data
 import ofscraper.utils.constants as constants
 import ofscraper.utils.hash as hash
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.system as system
-from ofscraper.download.shared.text import textDownloader
+from ofscraper.download.utils.log import empty_log
+from ofscraper.download.utils.text import textDownloader
 from ofscraper.utils.context.run_async import run
-from ofscraper.download.shared.log import empty_log
 
 
 @run
@@ -27,16 +26,14 @@ async def download_process(username, model_id, medialist, posts=None):
 
 async def download_picker(username, model_id, medialist):
     if len(medialist) == 0:
-        out=empty_log(username)
-        logging.getLogger("shared").error(
-            out
-        )
+        out = empty_log(username)
+        logging.getLogger("shared").error(out)
         return out
     elif (
         system.getcpu_count() > 1
         and (
             len(medialist)
-            >= config_data.get_threads() * constants.getattr("DOWNLOAD_THREAD_MIN")
+            >= settings.get_threads() * constants.getattr("DOWNLOAD_THREAD_MIN")
         )
         and settings.not_solo_thread()
     ):
@@ -71,5 +68,3 @@ def download_post_process(username, model_id, medialist, postlist):
     except Exception as e:
         log.traceback_(e)
         log.traceback_(traceback.format_exc())
-
-

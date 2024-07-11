@@ -7,15 +7,17 @@ import ofscraper.prompts.prompts as prompts
 import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.console as console
 import ofscraper.utils.me as me_util
-from ofscraper.utils.live.screens import update_activity_task
+from ofscraper.utils.live.updater import update_activity_task
 
 
 async def get_models() -> list:
     """
     Get user's subscriptions in form of a list.
     """
-    count = get_sub_count()
     update_activity_task(description="Getting subscriptions")
+    if read_args.retriveArgs().anon:
+        return await get_via_individual()
+    count = get_sub_count()
     if not bool(read_args.retriveArgs().usernames):
         return await get_via_list(count)
     elif "ALL" in read_args.retriveArgs().usernames:
@@ -67,6 +69,7 @@ def get_selected_model(parsed_subscriptions: list) -> tuple:
     to the model(s) whose content they would like to scrape.
     """
     return prompts.model_selector(parsed_subscriptions)
+
 
 def get_sub_count():
     name, username = me_util.parse_user()

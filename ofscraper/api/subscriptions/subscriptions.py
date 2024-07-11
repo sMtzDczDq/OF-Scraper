@@ -22,6 +22,8 @@ import ofscraper.classes.sessionmanager.ofsession as sessionManager
 import ofscraper.utils.constants as constants
 import ofscraper.utils.live.screens as progress_utils
 from ofscraper.utils.context.run_async import run
+from ofscraper.utils.live.updater import add_userlist_task, remove_userlist_task
+
 
 log = logging.getLogger("shared")
 console = Console()
@@ -30,7 +32,7 @@ console = Console()
 @run
 async def get_subscriptions(subscribe_count, account="active"):
 
-    task1 = progress_utils.add_userlist_task(
+    task1 = add_userlist_task(
         f"Getting your {account} subscriptions (this may take awhile)..."
     )
     async with sessionManager.OFSessionManager(
@@ -40,7 +42,7 @@ async def get_subscriptions(subscribe_count, account="active"):
             out = await activeHelper(subscribe_count, c)
         else:
             out = await expiredHelper(subscribe_count, c)
-    progress_utils.remove_userlist_task(task1)
+    remove_userlist_task(task1)
     log.debug(f"Total {account} subscriptions found {len(out)}")
     return out
 
@@ -153,7 +155,9 @@ async def scrape_subscriptions_active(c, offset=0, num=0, recur=False) -> list:
         url = constants.getattr("subscriptionsActiveEP").format(offset)
         try:
             log.debug(f"usernames active offset {offset}")
-            async with c.requests_async(url=url,forced=constants.getattr("API_FORCE_KEY")) as r:
+            async with c.requests_async(
+                url=url, forced=constants.getattr("API_FORCE_KEY")
+            ) as r:
                 subscriptions = (await r.json_())["list"]
                 log.debug(
                     f"usernames retrived -> {list(map(lambda x:x.get('username'),subscriptions))}"
@@ -188,7 +192,9 @@ async def scrape_subscriptions_disabled(c, offset=0, num=0, recur=False) -> list
         url = constants.getattr("subscriptionsExpiredEP").format(offset)
         try:
             log.debug(f"usernames offset expired {offset}")
-            async with c.requests_async(url=url,forced=constants.getattr("API_FORCE_KEY")) as r:
+            async with c.requests_async(
+                url=url, forced=constants.getattr("API_FORCE_KEY")
+            ) as r:
                 subscriptions = (await r.json_())["list"]
                 log.debug(
                     f"usernames retrived -> {list(map(lambda x:x.get('username'),subscriptions))}"

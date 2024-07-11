@@ -12,7 +12,6 @@ r"""
 """
 
 import json
-import logging
 import os
 
 from InquirerPy.base import Choice
@@ -24,15 +23,13 @@ from rich.console import Console
 import ofscraper.prompts.prompt_strings as prompt_strings
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
-import ofscraper.utils.cache as cache
 import ofscraper.utils.config.custom as custom
-import ofscraper.utils.config.data as data
 import ofscraper.utils.config.file as config_file
 import ofscraper.utils.config.schema as schema
 import ofscraper.utils.constants as constants
 import ofscraper.utils.paths.common as common_paths
 import ofscraper.utils.settings as settings
-import ofscraper.utils.system.system as system
+import ofscraper.utils.config.data as data
 
 console = Console()
 
@@ -62,12 +59,13 @@ def funct(prompt_):
     [Download Options]
     file_size_max: max size allowed for download
     file_size_min: min size required for download
-    filter: which media to download
+    length_min: min length of media, only applies to videos
+    length_max: max length of media, only applies to videos
+    filter: which media types to download
     auto_resume: toggle for resuming downloads
     system_free_min: stops downloads when bypass
     -----------------------------------
     [Binary Options]
-    mp4decrypt: path to mp4decrypt binary
     ffmeg: path to ffmpeg binary
     -----------------------------------
     [CDM Options]
@@ -80,6 +78,9 @@ def funct(prompt_):
     download-sem: number of downloads per processor/worker
     threads: number of processors/workers
     -----------------------------------
+    [Content Filter Options]
+    block_ads: use common key words to block ads
+    --------------------------------------------------
     [Advanced Options]
     code-execution: allow eval on custom_val
     dynamic-mode-default: source of signed header values
@@ -109,8 +110,8 @@ def funct(prompt_):
 
 def config_prompt() -> int:
     config_prompt_choices = [*constants.getattr("configPromptChoices")]
-    config_prompt_choices.insert(6, Separator())
-    config_prompt_choices.insert(9, Separator())
+    config_prompt_choices.insert(7, Separator())
+    config_prompt_choices.insert(10, Separator())
 
     answer = promptClasses.getChecklistSelection(
         message="Config Menu: Which area would you like to change?",
@@ -127,32 +128,6 @@ def download_config():
         *[
             {
                 "type": "input",
-                "name": "file_size_max",
-                "message": "file_size_max: ",
-                "option_instruction": """
-File size limit
-Input can be int representing bytes
-or human readable such as 10mb
-
-Enter 0 for no limit
-""",
-                "default": str(data.get_filesize_max()),
-            },
-            {
-                "type": "input",
-                "name": "file_size_min",
-                "message": "file_size_min: ",
-                "option_instruction": """
-File size min
-Input can be int representing bytes
-or human readable such as 10mb
-
-Enter 0 for no minimum
-""",
-                "default": str(data.get_filesize_min()),
-            },
-            {
-                "type": "input",
                 "name": "system_free_min",
                 "message": "minimum free space: ",
                 "option_instruction": """
@@ -166,20 +141,28 @@ Enter 0 for no limit
                 "filter": int,
             },
             {
-                "type": "checkbox",
-                "name": "filter",
-                "message": "filter: ",
-                "choices": list(
-                    map(
-                        lambda x: Choice(
-                            name=x,
-                            value=x,
-                            enabled=x.capitalize() in set(data.get_filter()),
-                        ),
-                        constants.getattr("FILTER_DEFAULT"),
-                    )
-                ),
-                "validate": prompt_validators.emptyListValidator(),
+                "type": "input",
+                "name": "length_min",
+                "message": "min length: ",
+                "option_instruction": """
+Min length of media to download in seconds
+This only applies to videos
+Enter 0 to disable
+""",
+                "default": str(data.get_min_length()),
+                "filter": int,
+            },
+            {
+                "type": "input",
+                "name": "length_max",
+                "message": "max length: ",
+                "option_instruction": """
+Max length of media to download in seconds
+This only applies to videos
+Enter 0 to disable
+""",
+                "default": str(data.get_max_length()),
+                "filter": int,
             },
             {
                 "type": "list",
@@ -287,20 +270,6 @@ def binary_config():
         *[
             {
                 "type": "filepath",
-                "name": "mp4decrypt",
-                "message": "mp4decrypt path: ",
-                "validate": prompt_validators.MultiValidator(
-                    EmptyInputValidator(),
-                    prompt_validators.mp4decryptpathvalidator(),
-                    prompt_validators.mp4decryptexecutevalidator(),
-                ),
-                "default": settings.get_mp4decrypt(),
-                "option_instruction": """
-Certain content requires decryption to process please provide the full path to mp4decrypt
-""",
-            },
-            {
-                "type": "filepath",
                 "name": "ffmpeg",
                 "message": "ffmpeg path: ",
                 "validate": prompt_validators.MultiValidator(
@@ -387,17 +356,8 @@ def performance_config():
     )
 
     out.update(threads)
-    max_allowed = cache.get("speed_download")
-    if not cache.get("speed_download") or promptClasses.getChecklistSelection(
-        choices=[Choice(True, "Yes"), Choice(False, "No")],
-        message="Re-run speedtest",
-        more_instruction="Download sem max value is based on calculated speed",
-        default=False,
-    ):
-        speed = get_speed(threads)
-        max_allowed = speed
-        cache.set("speed_download", speed)
-        cache.close()
+    max_allowed = get_max_sems(threads)
+
     answer = promptClasses.batchConverter(
         *[
             {
@@ -448,6 +408,69 @@ def general_config():
             },
         ],
         altx=funct,
+        more_instruction=prompt_strings.CONFIG_MENU,
+    )
+    out.update(answer)
+    config = config_file.open_config()
+    config.update(out)
+    final = schema.get_current_config_schema({"config": config})
+    return final
+
+
+def content_config():
+    out = {}
+    answer = promptClasses.batchConverter(
+        *[
+            {
+                "type": "list",
+                "name": "block_ads",
+                "choices": [Choice(True, "Yes"), Choice(False, "No")],
+                "message": "Do you want to auto block post with advertisment words:\n",
+                "default": data.get_block_ads(),
+            },
+            {
+                "type": "input",
+                "name": "file_size_max",
+                "message": "file_size_max: ",
+                "option_instruction": """
+File size limit
+Input can be int representing bytes
+or human readable such as 10mb
+
+Enter 0 for no limit
+""",
+                "default": str(data.get_filesize_max()),
+            },
+            {
+                "type": "input",
+                "name": "file_size_min",
+                "message": "file_size_min: ",
+                "option_instruction": """
+File size min
+Input can be int representing bytes
+or human readable such as 10mb
+
+Enter 0 for no minimum
+""",
+                "default": str(data.get_filesize_min()),
+            },
+            {
+                "type": "checkbox",
+                "name": "filter",
+                "message": "filter: ",
+                "choices": list(
+                    map(
+                        lambda x: Choice(
+                            name=x,
+                            value=x,
+                            enabled=x.capitalize() in set(data.get_filter()),
+                        ),
+                        constants.getattr("FILTER_DEFAULT"),
+                    )
+                ),
+                "validate": prompt_validators.emptyListValidator(),
+            },
+        ],
         more_instruction=prompt_strings.CONFIG_MENU,
     )
     out.update(answer)
@@ -722,26 +745,9 @@ def manual_config_prompt(configText) -> str:
     return questions[name]
 
 
-def get_speed(threads):
-    logging.getLogger("shared").info("running speed test")
-    speed = system.speed_test()
+def get_max_sems(threads):
     thread_count = int(threads["threads"])
-    if int(thread_count) == 0:
-        max_allowed = min(
-            max((speed * 0.6) // constants.getattr("maxChunkSize"), 3) * 2, 100
-        )
-    else:
-        max_allowed = min(
-            int(
-                max(
-                    ((speed * 0.6) / thread_count)
-                    // constants.getattr("maxChunkSizeB"),
-                    3,
-                )
-                * 2
-            ),
-            100 // thread_count,
-        )
+    max_allowed = 100 // thread_count
     return max_allowed
 
 

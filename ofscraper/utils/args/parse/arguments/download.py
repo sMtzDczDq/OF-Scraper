@@ -11,6 +11,9 @@ no_auto_resume_option = click.option(
 show_download_bars_option = click.option(
     "-db",
     "--downloadbars",
+    "--download-bars",
+    "--download-bar",
+    "downloadbars",
     help="Show individual download progress bars",
     default=False,
     is_flag=True,
@@ -20,6 +23,8 @@ download_sem_option = click.option(
     "-sd",
     "--downloadsem",
     "--downloadsems",
+    "--download-sems",
+    "--download-sem",
      "--sems",
       "--sem",
     "downloadsem",
@@ -31,12 +36,12 @@ download_sem_option = click.option(
 download_threads_option = click.option(
     "-dp",
     "--downloadthreads",
+    "--download-threads",
     "--threads",
     "--thread",
-    "--downloadthread"
+    "--downloadthread" ,
     "downloadthreads",
     help="Number of threads to use (minimum 1)",
     default=None,
     type=int,
 )
-

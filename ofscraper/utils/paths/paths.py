@@ -51,10 +51,10 @@ def temp_cleanup():
             ]
         )
         for ele in roots:
-            if ele == None:
+            if ele is None:
                 continue
             for file in filter(
-                lambda x: re.search("\.part$|^temp_", str(x)) != None,
+                lambda x: re.search("\.part$|^temp_", str(x)) is not None,
                 pathlib.Path(ele).glob("**/*"),
             ):
                 file.unlink(missing_ok=True)
@@ -62,6 +62,7 @@ def temp_cleanup():
 
 def truncate(path):
     path = pathlib.Path(os.path.normpath(path))
+    return _windows_truncateHelper(path)
     if platform.system() == "Windows":
         return _windows_truncateHelper(path)
     elif platform.system() == "Linux":
@@ -74,7 +75,7 @@ def truncate(path):
 
 def _windows_truncateHelper(path):
     path = pathlib.Path(os.path.normpath(path))
-    if get_string_byte_size(path) <= constants.getattr("WINDOWS_MAX_PATH_BYTES"):
+    if get_string_byte_size_windows(path) <= constants.getattr("WINDOWS_MAX_PATH_BYTES"):
         return path
     path = pathlib.Path(path)
     dir = path.parent
@@ -89,21 +90,21 @@ def _windows_truncateHelper(path):
     file = re.sub(ext, "", path.name)
     max_bytes = (
         constants.getattr("WINDOWS_MAX_PATH_BYTES")
-        - get_string_byte_size(ext)
-        - get_string_byte_size(dir)
+        - get_string_byte_size_windows(ext)
+        - get_string_byte_size_windows(dir)
     )
     if max_bytes <= 0:
         raise (f"dir to larger then max bytes {path}")
     low, high = 0, len(file)
     while low < high:
         mid = (low + high) // 2
-        if get_string_byte_size(file[:mid]) <= max_bytes:
+        if get_string_byte_size_windows(file[:mid]) <= max_bytes:
             low = mid + 1
         else:
             high = mid
     newFile = f"{file[:high]}{ext}"
     final_path = pathlib.Path(dir, newFile)
-    log.debug(f"path: {path} filepath bytesize: {get_string_byte_size(final_path)}")
+    log.debug(f"path: {path} filepath bytesize: {get_string_byte_size_windows(final_path)}")
     return final_path
 
 
@@ -133,22 +134,23 @@ def _linux_truncateHelper(path):
     )
     ext = match.group(0) if match else ""
     file = re.sub(ext, "", path.name)
-    max_bytes = constants.getattr("LINUX_MAX_FILE_NAME_BYTES") - get_string_byte_size(ext)
+    max_bytes = constants.getattr("LINUX_MAX_FILE_NAME_BYTES") - get_string_byte_size_unix(
+        ext
+    )
     low, high = 0, len(file)
     while low < high:
         mid = (low + high) // 2
-        if get_string_byte_size(file[:mid]) <= max_bytes:
+        if get_string_byte_size_unix(file[:mid]) <= max_bytes:
             low = mid + 1
         else:
             high = mid
     newFile = f"{file[:high]}{ext}"
-    log.debug(f"path: {path} filename bytesize: {get_string_byte_size(newFile)}")
+    log.debug(f"path: {path} filename bytesize: {get_string_byte_size_unix(newFile)}")
     return pathlib.Path(dir, newFile)
 
 
-def get_string_byte_size(text):
-  text=str(text)
-  """
+def get_string_byte_size_unix(text):
+    """
   This function estimates the byte size of a string considering ASCII characters.
 
   Args:
@@ -157,16 +159,53 @@ def get_string_byte_size(text):
   Returns:
       The estimated byte size of the string.
   """
-  total_size = 0
-  for char in text:
-    try:
-      if ord(char)<128:
-        total_size += 2  # 2 bytes for ASCII characters
-      else:
-          total_size+= 4
-    except ValueError:
-      total_size += 4  # 4 bytes for non-ASCII characters (assumption)
-  return total_size
+    total_size = 0
+    text=str(text)
+    normal_char_size=constants.getattr("NORMAL_CHAR_SIZE_UNIX")
+    special_char_size=constants.getattr("SPECIAL_CHAR_SIZE_UNIX")
+    utf=constants.getattr("UTF")
+    
+    if utf:
+        return len(text.encode(utf))
+    for char in text:
+        try:
+            if ord(char) < 128:
+                total_size += normal_char_size  # 2 bytes for ASCII characters
+            else:
+                total_size += special_char_size
+        except ValueError:
+            total_size += special_char_size  # 4 bytes for non-ASCII characters (assumption)
+    return total_size
+
+
+
+
+def get_string_byte_size_windows(text):
+    """
+  This function estimates the byte size of a string considering ASCII characters.
+
+  Args:
+      text: The string to analyze.
+
+  Returns:
+      The estimated byte size of the string.
+  """
+    total_size = 0
+    text=str(text)
+    normal_char_size=constants.getattr("NORMAL_CHAR_SIZE_WINDOWS")
+    special_char_size=constants.getattr("SPECIAL_CHAR_SIZE_WINDOWS")
+    utf=constants.getattr("UTF")
+    if utf:
+        return len(text.encode(utf))
+    for char in text:
+        try:
+            if ord(char) < 128:
+                total_size += normal_char_size  # 2 bytes for ASCII characters
+            else:
+                total_size += special_char_size
+        except ValueError:
+            total_size += special_char_size  # 4 bytes for non-ASCII characters (assumption)
+    return total_size
 
 def cleanDB():
     try:
@@ -179,4 +218,3 @@ def cleanDB():
 
 def speed_file():
     return pathlib.Path(common_paths.get_profile_path() / "speed.zip")
-

@@ -16,41 +16,49 @@ import logging
 import traceback
 from functools import partial
 
-import ofscraper.download.shared.globals as common_globals
+import ofscraper.download.utils.globals as common_globals
 import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.context.exit as exit
 import ofscraper.utils.live.screens as progress_utils
+import ofscraper.utils.live.updater as progress_updater
+
 import ofscraper.utils.logs.logger as logger
 import ofscraper.utils.logs.other as other_logs
 import ofscraper.utils.logs.stdout as stdout_logs
 import ofscraper.utils.manager as manager_
+from ofscraper.classes.sessionmanager.download import download_session
 from ofscraper.download.alt_download import alt_download
 from ofscraper.download.main_download import main_download
-from ofscraper.classes.sessionmanager.download import download_session
-from ofscraper.download.shared.general import get_medialog
-from ofscraper.download.shared.log import final_log, final_log_text,log_download_progress
-from ofscraper.download.shared.metadata import metadata
-from ofscraper.download.shared.paths.paths import setDirectoriesDate
-from ofscraper.download.shared.progress.progress import convert_num_bytes
+from ofscraper.download.utils.general import get_medialog
+from ofscraper.download.utils.log import (
+    final_log,
+    final_log_text,
+    log_download_progress,
+)
+from ofscraper.download.utils.metadata import metadata
+from ofscraper.download.utils.paths.paths import setDirectoriesDate
+from ofscraper.download.utils.progress.progress import convert_num_bytes
+from ofscraper.download.utils.workers import get_max_workers
 from ofscraper.utils.context.run_async import run
-from ofscraper.download.shared.workers import get_max_workers
 
 
-async def consumer(queue,task1,medialist):
+async def consumer(queue, task1, medialist):
     while True:
         data = await queue.get()
-        if data==None:
+        if data is None:
             queue.task_done()
             break
         else:
-            ele=data[1]
+            ele = data[1]
             try:
-                pack= await download(*data)
+                pack = await download(*data)
                 common_globals.log.debug(f"unpack {pack} count {len(pack)}")
                 media_type, num_bytes_downloaded = pack
             except Exception as e:
-                common_globals.log.info(f"{get_medialog(ele)} Download Failed because\n{e}" )
+                common_globals.log.info(
+                    f"{get_medialog(ele)} Download Failed because\n{e}"
+                )
                 common_globals.log.traceback_(traceback.format_exc())
                 media_type = "skipped"
                 num_bytes_downloaded = 0
@@ -77,7 +85,7 @@ async def consumer(queue,task1,medialist):
                     + common_globals.forced_skipped
                 )
                 log_download_progress(media_type)
-                progress_utils.download_overall_progress.update(
+                progress_updater.update_download_task(
                     task1,
                     description=common_globals.desc.format(
                         p_count=common_globals.photo_count,
@@ -98,11 +106,13 @@ async def consumer(queue,task1,medialist):
                 queue.task_done()
                 await asyncio.sleep(1)
             except Exception as e:
-                common_globals.log.info(f"{get_medialog(ele)} Download Failed because\n{e}")
+                common_globals.log.info(
+                    f"{get_medialog(ele)} Download Failed because\n{e}"
+                )
                 common_globals.log.traceback_(traceback.format_exc())
 
 
-async def producer(queue, aws,concurrency_limit):
+async def producer(queue, aws, concurrency_limit):
     for data in aws:
         await queue.put(data)
     for _ in range(concurrency_limit):
@@ -112,8 +122,7 @@ async def producer(queue, aws,concurrency_limit):
 
 @run
 async def process_dicts(username, model_id, medialist):
-
-    metadata_md= read_args.retriveArgs().metadata
+    metadata_md = read_args.retriveArgs().metadata
 
     # This need to be here: https://stackoverflow.com/questions/73599594/asyncio-works-in-python-3-10-but-not-in-python-3-8
     live = (
@@ -143,10 +152,8 @@ async def process_dicts(username, model_id, medialist):
 
             async with download_session() as c:
                 for ele in medialist:
-                    aws.append(
-                        (c, ele, model_id, username)
-                    )
-                task1 = progress_utils.add_download_task(
+                    aws.append((c, ele, model_id, username))
+                task1 = progress_updater.add_download_task(
                     common_globals.desc.format(
                         p_count=0,
                         v_count=0,
@@ -161,13 +168,15 @@ async def process_dicts(username, model_id, medialist):
                     total=len(aws),
                     visible=True,
                 )
-                concurrency_limit= get_max_workers()
+                concurrency_limit = get_max_workers()
                 queue = asyncio.Queue(maxsize=concurrency_limit)
-                consumers = [asyncio.create_task(consumer(queue,task1,medialist)) for _ in range(concurrency_limit)]
-                await producer(queue, aws,concurrency_limit)
+                consumers = [
+                    asyncio.create_task(consumer(queue, task1, medialist))
+                    for _ in range(concurrency_limit)
+                ]
+                await producer(queue, aws, concurrency_limit)
                 await asyncio.gather(*consumers)
-
-            progress_utils.remove_download_task(task1)
+            progress_updater.remove_download_task(task1)
             setDirectoriesDate()
             # close thread
             otherqueue.put("None")
@@ -176,7 +185,6 @@ async def process_dicts(username, model_id, medialist):
             other_thread.join() if other_thread else None
             final_log(username, log=logging.getLogger("shared"))
             return final_log_text(username)
-
 
         except Exception as E:
             with exit.DelayedKeyboardInterrupt():
@@ -189,27 +197,27 @@ async def process_dicts(username, model_id, medialist):
 
 
 async def download(c, ele, model_id, username):
-        try:
-            if read_args.retriveArgs().metadata:
-                return await metadata(c, ele, username, model_id)
-            elif ele.url:
-                return await main_download(
-                    c,
-                    ele,
-                    username,
-                    model_id,
-                )
-            elif ele.mpd:
-                return await alt_download(
-                    c,
-                    ele,
-                    username,
-                    model_id,
-                )
-
-        except Exception as E:
-            common_globals.log.debug(f"{get_medialog(ele)} exception {E}")
-            common_globals.log.debug(
-                f"{get_medialog(ele)} exception {traceback.format_exc()}"
+    try:
+        if read_args.retriveArgs().metadata:
+            return await metadata(c, ele, username, model_id)
+        elif ele.url:
+            return await main_download(
+                c,
+                ele,
+                username,
+                model_id,
             )
-            return "skipped", 0
+        elif ele.mpd:
+            return await alt_download(
+                c,
+                ele,
+                username,
+                model_id,
+            )
+
+    except Exception as E:
+        common_globals.log.debug(f"{get_medialog(ele)} exception {E}")
+        common_globals.log.debug(
+            f"{get_medialog(ele)} exception {traceback.format_exc()}"
+        )
+        return "skipped", 0

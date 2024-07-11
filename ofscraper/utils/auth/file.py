@@ -1,5 +1,3 @@
-import ofscraper.utils.auth.helpers as helpers
-
 r"""
                                                              
  _______  _______         _______  _______  _______  _______  _______  _______  _______ 
@@ -12,13 +10,15 @@ r"""
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
                                                                                       
 """
+
 import json
 
 from rich.console import Console
 
-import ofscraper.utils.auth.context as auth_context
 import ofscraper.utils.auth.make as make
 import ofscraper.utils.auth.schema as auth_schema
+import ofscraper.utils.auth.utils.context as auth_context
+import ofscraper.utils.auth.utils.dict as auth_dict
 import ofscraper.utils.paths.common as common_paths
 
 console = Console()
@@ -26,25 +26,27 @@ console = Console()
 
 def read_auth():
     while True:
-        auth=None
+        auth = None
         with auth_context.auth_context():
-            old_auth = helpers.get_auth_dict()
+            old_auth = auth_dict.get_auth_dict()
             auth = auth_schema.auth_schema(old_auth)
             if auth_schema.auth_key_missing(old_auth):
                 auth = write_auth(auth)
             if auth_schema.auth_key_null(auth):
                 auth = make.make_auth(auth)
             break
-    return auth 
+    return auth
 
 
 def edit_auth():
     while True:
+        auth = None
         with auth_context.auth_context():
-            auth = helpers.get_auth_dict()
+            auth = auth_dict.get_auth_dict()
             auth = make.make_auth(auth)
-            console.print("Your `auth.json` file has been edited.")
-        return auth
+            console.print("Your `auth.json` file has been edited")
+            break
+    return auth
 
 
 def write_auth(auth):
@@ -52,4 +54,4 @@ def write_auth(auth):
         auth = json.dumps(auth, indent=4)
     with open(common_paths.get_auth_file(), "w") as f:
         f.write(auth)
-    return helpers.get_auth_dict(auth)
+    return auth_dict.get_auth_dict(auth)

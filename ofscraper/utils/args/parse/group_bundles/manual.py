@@ -1,8 +1,7 @@
-import itertools
-
 import cloup as click
 
-import ofscraper.utils.args.parse.arguments.helpers.type as type
+from ofscraper.utils.args.callbacks.file import FileCallback
+from ofscraper.utils.args.callbacks.string import StringSplitParse
 from ofscraper.utils.args.parse.group_bundles.advanced_common import advanced_args
 from ofscraper.utils.args.parse.group_bundles.common import common_args
 
@@ -21,21 +20,16 @@ def manual_args(func):
             help="A space or comma seperated list of urls to download",
             default=None,
             multiple=True,
-            type=type.check_modes_strhelper,
-            callback=lambda ctx, param, value: (
-                list(set(itertools.chain.from_iterable(value))) if value else []
-            ),
+            callback=StringSplitParse,
         ),
         click.option(
             "-f",
             "--file",
             help="file with line-separated URL(s) for downloading",
             default=None,
-            type=type.check_modes_filehelper,
+            type=click.File(),
             multiple=True,
-            callback=lambda ctx, param, value: (
-                list(set(itertools.chain.from_iterable(value))) if value else []
-            ),
+            callback=FileCallback,
         ),
     )
     @click.option(

@@ -2,18 +2,12 @@ import cloup as click
 from click.exceptions import UsageError
 
 from ofscraper.const.constants import METADATA_OPTIONS
-from ofscraper.utils.args.parse.groups.advanced_processing import (
-    advanced_processing_options,
-)
 from ofscraper.utils.args.parse.arguments.advanced_program import (
     download_script_option,
     dynamic_rules_option,
     no_api_cache_option,
     no_cache_option,
     update_profile_option,
-)
-from ofscraper.utils.args.parse.groups.advanced_user_filter import (
-    advanced_userfilters_options,
 )
 from ofscraper.utils.args.parse.arguments.content import (
     after_option,
@@ -28,11 +22,16 @@ from ofscraper.utils.args.parse.arguments.content import (
     posts_option,
     timed_only_option,
 )
+from ofscraper.utils.args.parse.arguments.media_type import quality_option
+from ofscraper.utils.args.parse.groups.advanced_processing import (
+    advanced_processing_options,
+)
+from ofscraper.utils.args.parse.groups.advanced_user_filter import (
+    advanced_userfilters_options,
+)
 from ofscraper.utils.args.parse.groups.content import content_options
-    
 from ofscraper.utils.args.parse.groups.file import file_options
 from ofscraper.utils.args.parse.groups.logging import logging_options
-from ofscraper.utils.args.parse.arguments.media_type import quality_option
 from ofscraper.utils.args.parse.groups.program import program_options
 from ofscraper.utils.args.parse.groups.user_list import userlist_options
 from ofscraper.utils.args.parse.groups.user_select import user_select_options
@@ -69,9 +68,6 @@ It also uses a new filename if one is available
             type=click.Choice(METADATA_OPTIONS),
             metavar="METADATA MODE",
         ),
-    )
-    @click.option_group(
-        "filter_stray",
         click.option(
             "-ms",
             "--mark-stray-locked",
@@ -82,6 +78,20 @@ It also uses a new filename if one is available
         Sets unmatched media items as locked
         This is done per api type excluding labels, 
         and is limited to --after and --before range
+        """,
+            flag_value=True,
+            is_flag=True,
+        ),
+        click.option(
+            "-an",
+            "--anon",
+            "anon",
+            help="""
+        \b
+        Use anonymise creditional
+        forces --individual flag
+        force --list flag to be removed
+        most media is ignored
         """,
             flag_value=True,
             is_flag=True,
@@ -134,8 +144,17 @@ It also uses a new filename if one is available
     )
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):
-        if not ctx.params["metadata"] and not ctx.params["scrape_paid"]:
+        if ctx.params["anon"]:
+            if not ctx.params["usernames"]:
+                raise UsageError("'--usernames is required")
+            elif len(list(filter(lambda x: x != "ALL", ctx.params["usernames"]))) == 0:
+                raise UsageError("'--usernames value 'ALL' ignored is required")
+            else:
+                ctx.params["individual"] = True
+                ctx.params["list"] = False
+        elif not ctx.params["metadata"] and not ctx.params["scrape_paid"]:
             raise UsageError("'--scrape-paid' and/or --metadata is required")
+        ctx.params["action"] = []
         return func(ctx, *args, **kwargs)
 
     return wrapper

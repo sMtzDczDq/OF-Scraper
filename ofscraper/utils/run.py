@@ -23,13 +23,13 @@ import schedule
 
 import ofscraper.models.selector as userselector
 import ofscraper.utils.actions as actions
-import ofscraper.utils.args.mutators.before as before_arg
 import ofscraper.utils.args.accessors.read as read_args
+import ofscraper.utils.args.mutators.before as before_arg
 import ofscraper.utils.checkers as checkers
 import ofscraper.utils.context.exit as exit
 import ofscraper.utils.logs.logs as logs
 import ofscraper.utils.logs.other as other_logger
-from ofscraper.commands.scraper.runner import runner
+from ofscraper.commands.scraper.utils.setup.runner import runner
 
 log = logging.getLogger("shared")
 

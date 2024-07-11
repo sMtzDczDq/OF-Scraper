@@ -32,8 +32,6 @@ def areas_prompt() -> list:
         message = "Which area(s) would you do you want to download and unlike"
     elif "download" in args.action and args.command == "OF-Scraper":
         message = "Which area(s) would you do you want to download"
-    elif "download" in args.action and args.command == "metadata":
-        message = "Which area(s) would you do you want to update metadata for"
     more_instruction = (
         """Hint: Since you have Like or Unlike set
     You must select one or more of Timeline,Pinned,Archived, or Label
@@ -68,7 +66,7 @@ def areas_prompt() -> list:
         ]
     )
     answers[name].append(scrape_labels_prompt())
-    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
+    return answers[name] if answers[name][-1] is not None else answers[name][:-1]
 
 
 def like_areas_prompt(like=True) -> list:
@@ -87,19 +85,16 @@ def like_areas_prompt(like=True) -> list:
                     Choice("Pinned"),
                     Choice("Archived"),
                     Choice("Streams"),
-
                 ],
             }
         ]
     )
     answers[name].append(scrape_labels_prompt())
-    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
-
+    return answers[name] if answers[name][-1] is not None else answers[name][:-1]
 
 
 def download_areas_prompt() -> list:
     name = "areas"
-
     answers = promptClasses.batchConverter(
         *[
             {
@@ -118,15 +113,65 @@ def download_areas_prompt() -> list:
                     Choice("Messages"),
                     Choice("Purchased"),
                     Choice("Streams"),
-
-
                 ],
             }
         ]
     )
     answers[name].append(scrape_labels_prompt())
-    return answers[name] if answers[name][-1]!=None else  answers[name][:-1]
- 
+    return answers[name] if answers[name][-1] is not None else answers[name][:-1]
+
+
+def metadata_areas_prompt() -> list:
+    name = "areas"
+
+    answers = promptClasses.batchConverter(
+        *[
+            {
+                "type": "checkbox",
+                "qmark": "[?]",
+                "name": name,
+                "message": "Which area(s) would you to perform metadata actions on",
+                "validate": prompt_validators.emptyListValidator(),
+                "choices": [
+                    Choice("Profile"),
+                    Choice("Timeline"),
+                    Choice("Pinned"),
+                    Choice("Archived"),
+                    Choice("Highlights"),
+                    Choice("Stories"),
+                    Choice("Messages"),
+                    Choice("Purchased"),
+                    Choice("Streams"),
+                ],
+            }
+        ]
+    )
+    answers[name].append(scrape_labels_prompt())
+    return answers[name] if answers[name][-1] is not None else answers[name][:-1]
+
+
+def metadata_anon_areas_prompt() -> list:
+    name = "areas"
+    answers = promptClasses.batchConverter(
+        *[
+            {
+                "type": "checkbox",
+                "qmark": "[?]",
+                "name": name,
+                "message": "Which area(s) would you to perform metadata actions on anonymously",
+                "validate": prompt_validators.emptyListValidator(),
+                "choices": [
+                    Choice("Profile"),
+                    Choice("Timeline"),
+                    Choice("Pinned"),
+                    Choice("Archived"),
+                    Choice("Streams"),
+                ],
+            }
+        ]
+    )
+    answers[name].append(scrape_labels_prompt())
+    return answers[name] if answers[name][-1] is not None else answers[name][:-1]
 
 
 def scrape_labels_prompt():
@@ -145,6 +190,7 @@ def scrape_labels_prompt():
     if answer[name]:
         return "Labels"
     return
+
 
 def scrape_paid_prompt():
     name = "value"
@@ -166,8 +212,12 @@ def scrape_paid_prompt():
 
 def reset_areas_prompt() -> bool:
     name = "reset areas"
-    print(f"\n\nDownload Area: {areas.get_download_area()}")
-    print(f"Like Area: {areas.get_like_area()}\n\n")
+    print(
+        f"\n\nDownload Area: {areas.get_download_area() if bool(areas.get_download_area()) else None}"
+    )
+    print(
+        f"Like Area: {areas.get_like_area() if bool(areas.get_like_area()) else None}\n\n"
+    )
     answer = promptClasses.batchConverter(
         *[
             {
