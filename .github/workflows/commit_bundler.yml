@@ -18,7 +18,7 @@ jobs:
           fetch-tags: true
 
       - name: commit
-        uses: pr-mpt/actions-commit-hash@v2
+        uses: pr-mpt/actions-commit-hash@v3
         id: commit
   create_version:
     needs: [get_commit]
@@ -33,7 +33,7 @@ jobs:
           fetch-tags: true
       - run: git checkout ${{needs.get_commit.outputs.long}}
       - name: commit
-        uses: pr-mpt/actions-commit-hash@v2
+        uses: pr-mpt/actions-commit-hash@v3
         id: commit
       - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
