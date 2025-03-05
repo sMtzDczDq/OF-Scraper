@@ -35,10 +35,10 @@ jobs:
       - name: commit
         uses: pr-mpt/actions-commit-hash@v2
         id: commit
-      - name: Set up Python 3.11.5
+      - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.5
+          python-version: 3.13.2
       - name: install dunamai
         run: pip install dunamai
       - name: print version
@@ -92,9 +92,9 @@ jobs:
             rm -rf ./ofscraper/dist
             rm -rf ./ofscraper/build
             apt-get install zip libxml2-dev libxslt-dev -y
-            python3.11 -m venv .venv
+            python3.13 -m venv .venv
             source .venv/bin/activate
-            python3.11 -m pip install pyinstaller==6.10.0
+            python3.13 -m pip install pyinstaller==6.12.0
             /root/.local/bin/poetry install
             echo "ls files"
             ls .
@@ -151,9 +151,9 @@ jobs:
             rm -rf ./ofscraper/dist
             rm -rf ./ofscraper/build
             apt-get install zip libxml2-dev libxslt-dev -y
-            python3.11 -m venv .venv
+            python3.13 -m venv .venv
             source .venv/bin/activate
-            python3.11 -m pip install pyinstaller==6.10.0
+            python3.13 -m pip install pyinstaller==6.12.0
             /root/.local/bin/poetry install
             echo "ls files"
             ls .
@@ -201,14 +201,14 @@ jobs:
           with: |
             name: ofscraper_version_${{needs.get_commit.outputs.short}}
             path: ofscraper
-      - name: Set up Python 3.11.5
+      - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.5
+          python-version: 3.13.2
       - name: install poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: 1.4.1
+          poetry-version: 2.1.1
       - name: create virtualenv
         run: python3 -m venv .venv
       - name: install ofscraper windows
@@ -276,14 +276,14 @@ jobs:
           with: |
             name: ofscraper_version_${{needs.get_commit.outputs.short}}
             path: ofscraper
-      - name: Set up Python 3.11.5
+      - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.5
+          python-version: 3.13.2
       - name: install poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: 1.4.1
+          poetry-version: 2.1.1
       - name: create virtualenv
         run: python3 -m venv .venv
       - name: install ofscraper windows
@@ -294,7 +294,7 @@ jobs:
       - name: Install pyinstaller
         run: |
           .venv\Scripts\activate.bat
-           pip install pyinstaller==6.10.0
+           pip install pyinstaller==6.12.0
           .venv\Scripts\deactivate.bat
       - name: test ofscraper
         run: ofscraper -h
@@ -347,16 +347,16 @@ jobs:
           with: |
             name: ofscraper_version_${{needs.get_commit.outputs.short}}
             path: ofscraper
-      - name: Set up Python 3.11.5
+      - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.5
+          python-version: 3.13.2
       - name: create virtualenv
         run: python3 -m venv .venv
       - name: install poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: 1.4.1
+          poetry-version: 2.1.1
       - name: Install package
         run: |
           source .venv/bin/activate
@@ -365,7 +365,7 @@ jobs:
       - name: Install pyinstaller
         run: |
           source .venv/bin/activate
-          pip install pyinstaller==6.10.0
+          pip install pyinstaller==6.12.0
           deactivate
       - name: test ofscraper
         run: |
@@ -427,16 +427,16 @@ jobs:
           with: |
             name: ofscraper_version_${{needs.get_commit.outputs.short}}
             path: ofscraper
-      - name: Set up Python 3.11.5
+      - name: Set up Python 3.13.2
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.5
+          python-version: 3.13.2
       - name: create virtualenv
         run: python3 -m venv .venv
       - name: install poetry
         uses: abatilo/actions-poetry@v2
         with:
-          poetry-version: 1.4.1
+          poetry-version: 2.1.1
       - name: Install package
         run: |
           source .venv/bin/activate
@@ -445,7 +445,7 @@ jobs:
       - name: Install pyinstaller
         run: |
           source .venv/bin/activate
-          pip install pyinstaller==6.10.0
+          pip install pyinstaller==6.12.0
           deactivate
       - name: test ofscraper
         run: |
