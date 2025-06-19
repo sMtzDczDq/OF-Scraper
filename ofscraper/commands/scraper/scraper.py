@@ -29,6 +29,9 @@ import ofscraper.utils.config.data as data
 import ofscraper.utils.menu as menu
 from ofscraper.commands.scraper.utils.jobqueue import jobqueue
 from ofscraper.__version__ import __version__
+import ofscraper.utils.settings as settings
+from ofscraper.utils.logs.logger import flushlogs
+
 
 
 log = logging.getLogger("shared")
@@ -50,13 +53,13 @@ class scraperManager(commmandManager):
             with progress_utils.setup_activity_group_live(
                 setup=True, revert=False, stop=True
             ):
-                if read_args.retriveArgs().scrape_paid:
+                if settings.get_settings().scrape_paid:
                     scrape_paid_data = scrape_paid_all()
 
                 if not self.run_action:
                     pass
 
-                elif read_args.retriveArgs().users_first:
+                elif settings.get_settings().users_first:
                     userdata, session = prepare(menu=menu)
                     user_first_data = self._process_users_actions_user_first(
                         userdata, session
@@ -76,7 +79,7 @@ class scraperManager(commmandManager):
         progress_updater.update_user_activity(
             description="Users with Actions completed", completed=0
         )
-
+        flushlogs()
         return await self._get_userfirst_action_execution_function(
             self._execute_user_action
         )(data)
@@ -104,7 +107,7 @@ class scraperManager(commmandManager):
     async def _execute_user_action(
         self, posts=None, like_posts=None, ele=None, media=None
     ):
-        actions = read_args.retriveArgs().action
+        actions = settings.get_settings().action
         username = ele.name
         model_id = ele.id
         out = []
@@ -145,12 +148,10 @@ class scraperManager(commmandManager):
         progress_updater.update_user_activity(
             description="Users with Actions Completed"
         )
+        flushlogs()
         return await self._get_user_action_function(self._execute_user_action)(
             userdata, session
         )
-
-
-
 
 
 def main():
@@ -182,13 +183,15 @@ def main():
         except KeyboardInterrupt:
             with exit.DelayedKeyboardInterrupt():
                 raise E
+
+
 def daemon_process():
     checkers.check_auth()
     worker_thread = None
     scrapingManager = scraperManager()
 
     jobqueue.put(scrapingManager.runner)
-    if read_args.retriveArgs().output == "PROMPT":
+    if settings.get_settings().output_level == "PROMPT":
         log.info("[bold]silent-mode on[/bold]")
     log.info("[bold]Daemon mode on[/bold]")
     manager.Manager.model_manager.getselected_usernames()
@@ -235,6 +238,8 @@ def process_prompts():
             break
         elif prompts.continue_prompt() == "No":
             break
+
+
 def process_selected_areas():
     log.debug("[bold deep_sky_blue2] Running Action Mode [/bold deep_sky_blue2]")
     scrapingManager = scraperManager()
@@ -253,6 +258,7 @@ def process_selected_areas():
             scrapingManager.runner()
             menu.update_count()
 
+
 def scrapper():
     global selectedusers
     selectedusers = None
@@ -265,6 +271,7 @@ def scrapper():
         process_selected_areas()
     elif len(args.action) == 0:
         process_prompts()
+
 
 def print_start():
     console.get_shared_console().print(

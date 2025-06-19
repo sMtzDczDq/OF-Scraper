@@ -1,11 +1,8 @@
 import logging
 
 import ofscraper.filters.media.filters as helpers
-import ofscraper.utils.args.accessors.read as read_args
-from ofscraper.utils.args.accessors.actions import get_actions
 import ofscraper.utils.constants as constants
 import ofscraper.utils.settings as settings
-from ofscraper.utils.args.accessors.command import get_command
 from ofscraper.utils.logs.utils.trace import is_trace
 
 
@@ -13,9 +10,9 @@ log = logging.getLogger("shared")
 
 
 def filtermediaFinal(media, username, model_id):
-    actions = read_args.retriveArgs().action
-    scrape_paid = read_args.retriveArgs().scrape_paid
-    if get_command() == "metadata":
+    actions = settings.get_settings().action
+    scrape_paid = settings.get_settings().scrape_paid
+    if settings.get_settings().command == "metadata":
         return filterMediaFinalMetadata(media, username, model_id)
     elif "download" in actions or scrape_paid:
         return filterMediaFinalDownload(media, username, model_id)
@@ -41,11 +38,12 @@ def filterMediaFinalMetadata(media, username, model_id):
         count += 1
         trace_log_media(count, media, "filtered viewable media")
         log.debug(f"filter {count}-> viewable media filter count: {len(media)}")
+    media=helpers.previous_download_filter(media, username=username, model_id=model_id)
     media = helpers.ele_count_filter(media)
     count += 1
     trace_log_media(count, media, "media max post count filter:")
     log.debug(f"filter {count}->  media max post count filter count: {len(media)}")
-    return helpers.previous_download_filter(media, username=username, model_id=model_id)
+    return media
 
 
 def filterMediaFinalDownload(media, username, model_id):
@@ -69,19 +67,20 @@ def filterMediaFinalDownload(media, username, model_id):
     count += 1
     trace_log_media(count, media, "media dupe media_id filter:")
     log.debug(f"filter {count}->  media dupe media_id filter count: {len(media)}")
-
-    media = helpers.ele_count_filter(media)
+    media=helpers.previous_download_filter(media, username=username, model_id=model_id)
     count += 1
+    media=helpers.ele_count_filter(media)
     trace_log_media(count, media, "media max post count filter:")
     log.debug(f"filter {count}->  media max post count filter count: {len(media)}")
-    return helpers.previous_download_filter(media, username=username, model_id=model_id)
+    return media
+
 
 
 def filtermediaAreas(media, **kwargs):
 
-    actions = read_args.retriveArgs().action
-    scrape_paid = read_args.retriveArgs().scrape_paid
-    if get_command() == "metadata":
+    actions = settings.get_settings().action
+    scrape_paid = settings.get_settings().scrape_paid
+    if settings.get_settings().command == "metadata":
         return filterMediaAreasMetadata(media)
     elif "download" in actions or scrape_paid:
         return filterMediaAreasDownload(media)
@@ -168,8 +167,8 @@ def filterMediaAreasHelper(media):
 
 
 def filterPostFinalText(post):
-    actions = read_args.retriveArgs().action
-    scrape_paid = read_args.retriveArgs().scrape_paid
+    actions = settings.get_settings().action
+    scrape_paid = settings.get_settings().scrape_paid
     if "download" not in actions and not scrape_paid:
         log.debug("Skipping filtering because download not in actions")
         return []
@@ -218,7 +217,7 @@ def filterPostFinalText(post):
 
 def post_filter_for_like(post, like=False):
 
-    actions = get_actions()
+    actions = settings.get_settings().action
     if "like" not in actions and "unlike" not in actions:
         log.debug("Skipping filtering because like and unlike not in actions")
         return post
@@ -241,6 +240,7 @@ def filterCheckMode(media, username, model_id):
     # no filtering for now
     return media
 
+
 def trace_log_media(count, media, filter_str):
     if not is_trace():
         return
@@ -251,6 +251,8 @@ def trace_log_media(count, media, filter_str):
                 filter_str, count, ele.id, ele.postid, ele.media, ele.media
             )
         )
+
+
 def trace_log_post(count, media, filter_str):
     if not is_trace():
         return
@@ -260,4 +262,5 @@ def trace_log_post(count, media, filter_str):
         log.trace(
             "{} current item  count: {} postid: {} data: {} \n\n".format(
                 filter_str, count, ele.id, ele.post
-            ))
+            )
+        )

@@ -1,6 +1,5 @@
 import logging
-
-import ofscraper.utils.args.accessors.read as read_args
+import ofscraper.utils.settings as settings
 
 senstiveDict = {}
 
@@ -77,7 +76,3 @@ def getNumber(input_):
         return logging.getLevelName(input_)
     return input_
 
-
-def getNumberOutput():
-    level_name = read_args.retriveArgs().output
-    return getNumber(level_name)

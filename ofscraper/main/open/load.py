@@ -48,8 +48,7 @@ def setLogger():
     log_globals.init_values()
     logger.get_shared_logger()
     logs.discord_warning()
-    logger.start_threads()
-
+    paths_manage.cleanup_logs()
 
 def systemSet():
     system.setName()
@@ -67,5 +66,4 @@ def make_folder():
 
 
 def check():
-    checkers.check_config()
     checkers.check_config_key_mode()

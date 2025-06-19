@@ -52,10 +52,9 @@ def get_current_config_schema(config: dict = None) -> dict:
         "advanced_options": {
             "code-execution": data.get_allow_code_execution(config=config),
             "dynamic-mode-default": data.get_dynamic(config=config),
-            "backend": data.get_backend(config=config),
             "downloadbars": data.get_show_downloadprogress(config=config),
             "cache-mode": data.cache_mode_helper(config=config),
-            "appendlog": data.get_appendlog(config=config),
+            "rotate_logs": data.get_rotate_logs(config=config),
             "custom_values": custom.get_custom(config=config),
             "sanitize_text": data.get_sanitizeDB(config=config),
             "temp_dir": data.get_TempDir(config=config),
@@ -64,6 +63,7 @@ def get_current_config_schema(config: dict = None) -> dict:
             "enable_auto_after": data.get_enable_after(config=config),
             "default_user_list": data.get_default_userlist(config=config),
             "default_black_list": data.get_default_blacklist(config=config),
+            "logs_expire_time":data.get_logs_expire(config=config),
         },
         "script_options": {
             "post_download_script": data.get_post_download_script(config=config),
@@ -97,20 +97,27 @@ def config_diff(config):
     if config.get("config"):
         config = config["config"]
     schema = get_current_config_schema()
-    return config_diff_helper(config, schema)
+    return _config_diff_helper(config, schema)
 
-
-def config_diff_helper(config, schema, key=None):
-    if key:
-        config = config[key]
-        schema = schema[key]
-    diff = set(schema.keys()) - set(config.keys())
-    if len(diff) > 0:
+def _config_diff_helper(config, schema):
+    # Check for keys in schema but missing in config
+    if set(schema.keys()) - set(config.keys()):
         return True
-    for key in schema.keys():
-        if not isinstance(schema[key], dict):
-            continue
-        elif not isinstance(config[key], dict):
-            return True
-        elif config_diff_helper(config, schema, key):
-            return True
+
+    # Check for keys in config but missing in schema
+    if set(config.keys()) - set(schema.keys()):
+        return True
+
+    for key, schema_value in schema.items():
+        if key in config:
+            config_value = config[key]
+            if isinstance(schema_value, dict):
+                if not isinstance(config_value, dict):
+                    return True
+                if _config_diff_helper(config_value, schema_value):
+                    return True
+            elif schema_value != config_value:  # Simple value comparison
+                return True
+        # Keys missing from config are already handled above
+
+    return False

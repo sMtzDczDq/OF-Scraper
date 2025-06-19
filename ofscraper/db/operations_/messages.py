@@ -21,8 +21,8 @@ from rich.console import Console
 import ofscraper.db.utils.convert as convert
 import ofscraper.db.operations_.media as media
 import ofscraper.db.operations_.wrapper as wrapper
-import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.db.operations_.profile import get_single_model_via_profile
+import ofscraper.utils.settings as settings
 
 console = Console()
 log = logging.getLogger("shared")
@@ -226,7 +226,7 @@ async def make_messages_table_changes(
     if len(new_posts) > 0:
         new_posts = convert.converthelper(new_posts)
         await write_messages_table(new_posts, model_id=model_id, username=username)
-    if read_args.retriveArgs().metadata and len(curr_posts) > 0:
+    if settings.get_settings().metadata and len(curr_posts) > 0:
         curr_posts = convert.converthelper(curr_posts)
         await update_messages_table(curr_posts, model_id=model_id, username=username)
 

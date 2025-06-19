@@ -5,10 +5,10 @@ import ofscraper.data.api.subscriptions.lists as lists
 import ofscraper.data.api.subscriptions.subscriptions as subscriptions
 import ofscraper.data.models.models as models
 import ofscraper.prompts.prompts as prompts
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.console as console
 import ofscraper.utils.me as me_util
 from ofscraper.utils.live.updater import update_activity_task
+import ofscraper.utils.settings as settings
 
 
 async def get_models() -> list:
@@ -16,18 +16,18 @@ async def get_models() -> list:
     Get user's subscriptions in form of a list.
     """
     update_activity_task(description="Getting subscriptions")
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return await get_via_individual()
     count = get_sub_count()
-    if not bool(read_args.retriveArgs().usernames):
+    if not bool(settings.get_settings().usernames):
         return await get_via_list(count)
-    elif "ALL" in read_args.retriveArgs().usernames:
+    elif "ALL" in settings.get_settings().usernames:
         return await get_via_list(count)
-    elif read_args.retriveArgs().individual:
+    elif settings.get_settings().username_search=="indvidual":
         return await get_via_individual()
-    elif read_args.retriveArgs().list:
-        return get_via_list(count)
-    elif (sum(count) // 12) >= len(read_args.retriveArgs().usernames):
+    elif settings.get_settings().username_search=="list":
+        return await get_via_list(count)
+    elif (sum(count) // 12) >= len(settings.get_settings().usernames):
         return await get_via_individual()
     else:
         return await get_via_list(count)

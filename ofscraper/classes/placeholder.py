@@ -23,8 +23,6 @@ import ofscraper.main.manager as manager
 log = logging.getLogger("shared")
 
 
-
-
 class basePlaceholder:
     def __init__(self) -> None:
         self._ele = None
@@ -383,7 +381,7 @@ class Placeholders(basePlaceholder):
 
     @property
     def trunicated_filepath(self):
-        if settings.get_trunication(mediatype=self._ele.mediatype):
+        if settings.get_settings(mediatype=self._ele.mediatype).trunicate:
             return pathlib.Path(paths.truncate(self._filepath))
         return self._filepath
 
@@ -582,7 +580,7 @@ class Textholders(basePlaceholder):
 
     @property
     def trunicated_filepath(self):
-        if settings.get_trunication(mediatype=self._ele.mediatype):
+        if settings.get_settings(mediatype=self._ele.mediatype).trunicate:
             return pathlib.Path(paths.truncate(self._filepath))
         return self._filepath
 

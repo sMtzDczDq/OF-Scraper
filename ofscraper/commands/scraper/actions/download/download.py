@@ -22,16 +22,14 @@ from ofscraper.classes.sessionmanager.download import download_session
 from ofscraper.commands.scraper.actions.utils.log import final_log, final_log_text
 
 from ofscraper.commands.scraper.actions.utils.paths.paths import setDirectoriesDate
-from ofscraper.commands.scraper.actions.utils.buffer import download_log_clear_helper
 
 from ofscraper.commands.scraper.actions.utils.workers import get_max_workers
 from ofscraper.utils.context.run_async import run
 from ofscraper.commands.scraper.actions.download.run import consumer
 from ofscraper.commands.scraper.actions.download.utils.desc import desc
 from ofscraper.commands.scraper.actions.download.utils.text import textDownloader
-import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.utils.args.accessors.areas import get_download_area
-from ofscraper.utils.args.accessors.command import get_command
+import ofscraper.utils.settings as settings
 
 
 async def downloader(username=None, model_id=None, posts=None, media=None, **kwargs):
@@ -46,7 +44,7 @@ async def downloader(username=None, model_id=None, posts=None, media=None, **kwa
     )
 
     progress_updater.update_activity_task(description=download_str + path_str)
-    logging.getLogger("shared_other").warning(
+    logging.getLogger("shared").warning(
         download_activity_str.format(username=username)
     )
     progress_updater.update_activity_task(description="")
@@ -72,13 +70,12 @@ async def download_model_deleted_process(
 @run
 async def process_dicts(username, model_id, medialist, posts):
     log_text_array = []
-    download_log_clear_helper()
     log_text_array.append(await textDownloader(posts, username=username))
     logging.getLogger("shared").info("Downloading in single thread mode")
     common_globals.mainProcessVariableInit()
-    if read_args.retriveArgs().text_only:
+    if settings.get_settings().text_only:
         return log_text_array, (0, 0, 0, 0, 0)
-    elif get_command() in {
+    elif settings.get_settings().command in {
         "manual",
         "post_check",
         "msg_check",
@@ -86,7 +83,7 @@ async def process_dicts(username, model_id, medialist, posts):
         "paid_check",
     }:
         pass
-    elif read_args.retriveArgs().scrape_paid:
+    elif settings.get_settings().scrape_paid:
         pass
     elif len(get_download_area()) == 0:
         empty_log = final_log_text(username, 0, 0, 0, 0, 0, 0)
@@ -104,7 +101,6 @@ async def process_dicts(username, model_id, medialist, posts):
         try:
 
             aws = []
-
             async with download_session() as c:
                 for ele in medialist:
                     aws.append((c, ele, model_id, username))
@@ -140,7 +136,6 @@ async def process_dicts(username, model_id, medialist, posts):
             common_globals.thread.shutdown()
 
         setDirectoriesDate()
-        download_log_clear_helper()
         final_log(username, log=logging.getLogger("shared"))
         progress_updater.remove_download_task(task1)
         log_text_array.append(final_log_text(username))

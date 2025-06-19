@@ -23,7 +23,7 @@ import ofscraper.classes.of.posts as posts_
 import ofscraper.classes.table.app as app
 import ofscraper.db.operations as operations
 import ofscraper.utils.args.accessors.read as read_args
-import ofscraper.utils.args.mutators.write as write_args
+import ofscraper.utils.settings as settings
 import ofscraper.utils.auth.request as auth_requests
 import ofscraper.utils.console as console_
 import ofscraper.utils.constants as constants
@@ -42,7 +42,6 @@ from ofscraper.utils.checkers import check_auth
 from ofscraper.utils.context.run_async import run
 from ofscraper.main.close.final.final_user import post_user_script
 from ofscraper.main.close.final.final import final
-from ofscraper.utils.args.accessors.command import get_command
 import ofscraper.main.manager as manager
 import ofscraper.filters.media.main as filters
 from ofscraper.commands.scraper.actions.download.download import process_dicts
@@ -94,15 +93,15 @@ def process_item():
     process_download_cart.counter = process_download_cart.counter + 1
     log.info("Getting items from cart")
     try:
-       key,row=app.row_queue.get()
+        key, row = app.row_queue.get()
     except Exception as E:
         log.debug(f"Error getting item from queue: {E}")
         return
     for count, _ in enumerate(range(0, 2)):
         try:
             username = row["username"]
-            post_id = int( row["post_id"] )
-            media_id =  int(row["media_id"])
+            post_id = int(row["post_id"])
+            media_id = int(row["media_id"])
             media = ALL_MEDIA.get(
                 "_".join(map(lambda x: str(x), [media_id, post_id, username]))
             )
@@ -120,18 +119,27 @@ def process_item():
             )
             operations.table_init_create(model_id=model_id, username=username)
 
-            output, values = process_dicts(
-                username, model_id, [media], [post]
-            )
+            output, values = process_dicts(username, model_id, [media], [post])
             if values is None or values[-1] == 1:
-                raise Exception("Download is marked as skipped")
-            log.info("Download Finished")
-            update_globals(model_id, username, post, media, output)
-            app.app.table.update_cell_at_key(key, "download_cart", Text("[downloaded]",style="bold green"))
-            break
+                raise Exception("Download is marked as failed")
+            elif values[-2] == 1:
+                log.info("Download Skipped")
+                app.app.table.update_cell_at_key(
+                    key, "download_cart", Text("[skipped]", style="bold bright_yellow")
+                )
+
+            else:
+                log.info("Download Finished")
+                update_globals(model_id, username, post, media, output)
+                app.app.table.update_cell_at_key(
+                    key, "download_cart", Text("[downloaded]", style="bold green")
+                )
+                break
         except Exception as E:
             if count == 1:
-                app.app.table.update_cell_at_key(key, "download_cart", Text("[failed]",style="bold red"))
+                app.app.table.update_cell_at_key(
+                    key, "download_cart", Text("[failed]", style="bold red")
+                )
                 raise E
             log.info("Download Failed Refreshing data")
             data_refill(media_id, post_id, username, model_id)
@@ -160,15 +168,15 @@ def update_globals(model_id, username, post, media, values):
 
 @run
 async def data_refill(media_id, post_id, target_name, model_id):
-    if get_command() == "msg_check":
+    if settings.get_settings().command == "msg_check":
         reset_message_set(model_id)
         retriver = message_check_retriver
-    elif get_command() == "paid_check":
+    elif settings.get_settings().command == "paid_check":
         reset_paid_set(model_id)
         retriver = purchase_check_retriver
-    elif get_command() == "story_check":
+    elif settings.get_settings().command == "story_check":
         retriver = stories_check_retriver
-    elif get_command() == "post_check":
+    elif settings.get_settings().command == "post_check":
         reset_time_line_cache(model_id)
         retriver = post_check_retriver
     else:
@@ -181,11 +189,11 @@ async def data_refill(media_id, post_id, target_name, model_id):
 def allow_check_dupes():
     args = read_args.retriveArgs()
     args.force_all = True
-    write_args.setArgs(args)
+    settings.update_args(args)
 
 
 def get_areas():
-    return read_args.retriveArgs().check_area
+    return settings.get_settings().check_area
 
 
 def checker():
@@ -193,13 +201,13 @@ def checker():
     allow_check_dupes()
     set_after_check_mode()
     try:
-        if get_command() == "post_check":
+        if settings.get_settings().command == "post_check":
             post_checker()
-        elif get_command() == "msg_check":
+        elif settings.get_settings().command == "msg_check":
             message_checker()
-        elif get_command() == "paid_check":
+        elif settings.get_settings().command == "paid_check":
             purchase_checker()
-        elif get_command() == "story_check":
+        elif settings.get_settings().command == "story_check":
             stories_checker()
     except Exception as E:
         log.traceback_(E)
@@ -210,7 +218,7 @@ def checker():
 def set_after_check_mode():
     args = read_args.retriveArgs()
     args.after = 0
-    write_args.setArgs(args)
+    settings.update_args(args)
 
 
 def post_checker():
@@ -231,7 +239,7 @@ async def post_check_runner():
             await make_changes_to_content_tables(
                 final_post_array, model_id=model_id, username=user_name
             )
-            await row_gather(user_name, model_id, paid=True)
+            await row_gather(user_name, model_id)
 
 
 @run
@@ -239,7 +247,7 @@ async def post_check_retriver():
     user_dict = {}
     links = list(url_helper())
     async with manager.Manager.aget_ofsession(
-        backend="httpx",
+       
         sem_count=constants.getattr("API_REQ_CHECK_MAX"),
     ) as c:
         for ele in links:
@@ -274,7 +282,7 @@ async def post_check_retriver():
                 )
                 if "Timeline" in areas:
                     oldtimeline = read_check(model_id, timeline.API)
-                    if len(oldtimeline) > 0 and not read_args.retriveArgs().force:
+                    if len(oldtimeline) > 0 and not settings.get_settings().force:
                         timeline_data = oldtimeline
                     else:
                         timeline_data = await timeline.get_timeline_posts(
@@ -283,7 +291,7 @@ async def post_check_retriver():
                         set_check(timeline_data, model_id, timeline.API)
                 if "Archived" in areas:
                     oldarchive = read_check(model_id, archived.API)
-                    if len(oldarchive) > 0 and not read_args.retriveArgs().force:
+                    if len(oldarchive) > 0 and not settings.get_settings().force:
                         archived_data = oldarchive
                     else:
                         archived_data = await archived.get_archived_posts(
@@ -293,7 +301,7 @@ async def post_check_retriver():
 
                 if "Pinned" in areas:
                     oldpinned = read_check(model_id, pinned.API)
-                    if len(oldpinned) > 0 and not read_args.retriveArgs().force:
+                    if len(oldpinned) > 0 and not settings.get_settings().force:
                         pinned_data = oldpinned
                     else:
                         pinned_data = await pinned.get_pinned_posts(model_id, c=c)
@@ -301,7 +309,7 @@ async def post_check_retriver():
 
                 if "Labels" in areas:
                     oldlabels = read_check(model_id, labels.API)
-                    if len(oldlabels) > 0 and not read_args.retriveArgs().force:
+                    if len(oldlabels) > 0 and not settings.get_settings().force:
                         labels_data = oldlabels
                     else:
                         labels_resp = await labels.get_labels(model_id, c=c)
@@ -320,7 +328,7 @@ async def post_check_retriver():
 
                 if "Streams" in areas:
                     oldstreams = read_check(model_id, streams.API)
-                    if len(oldstreams) > 0 and not read_args.retriveArgs().force:
+                    if len(oldstreams) > 0 and not settings.get_settings().force:
                         streams_data = oldstreams
                     else:
                         streams_resp = await streams.get_streams_posts(
@@ -329,7 +337,7 @@ async def post_check_retriver():
                         streams_data = [
                             post
                             for streams in streams_resp
-                            for post in streams.get("post", [])
+                            for post in streams.get("posts", [])
                         ]
                         set_check(streams_data, model_id, streams.API)
 
@@ -404,10 +412,9 @@ async def post_check_retriver():
 def reset_data():
     # clean up args once check modes are ready to launch
     args = read_args.retriveArgs()
-    argdict = vars(args)
-    if argdict.get("username"):
-        read_args.retriveArgs().usernames = None
-    write_args.setArgs(args)
+    if args.username:
+        args.username = settings.get_settings().usernames = None
+    settings.update_args(args)
 
 
 def start_helper():
@@ -433,13 +440,13 @@ async def message_checker_runner():
             await make_changes_to_content_tables(
                 final_post_array, model_id=model_id, username=user_name
             )
-            await row_gather(user_name, model_id, paid=True)
+            await row_gather(user_name, model_id)
 
 
 async def message_check_retriver():
     links = list(url_helper())
     async with manager.Manager.aget_ofsession(
-        backend="httpx",
+       
     ) as c:
         for item in links:
             num_match = re.search(
@@ -462,7 +469,7 @@ async def message_check_retriver():
                 oldmessages = read_check(model_id, messages_.API)
                 log.debug(f"Number of messages in cache {len(oldmessages)}")
 
-                if len(oldmessages) > 0 and not read_args.retriveArgs().force:
+                if len(oldmessages) > 0 and not settings.get_settings().force:
                     messages = oldmessages
                 else:
                     messages = await messages_.get_messages(model_id, user_name, c=c)
@@ -478,7 +485,7 @@ async def message_check_retriver():
                 oldpaid = read_check(model_id, paid_.API) or []
                 paid = None
                 # paid content
-                if len(oldpaid) > 0 and not read_args.retriveArgs().force:
+                if len(oldpaid) > 0 and not settings.get_settings().force:
                     paid = oldpaid
                 else:
                     paid = await paid_.get_paid_posts(model_id, user_name, c=c)
@@ -508,7 +515,7 @@ async def purchase_checker_runner():
             await make_changes_to_content_tables(
                 final_post_array, model_id=model_id, username=user_name
             )
-            await row_gather(user_name, model_id, paid=True)
+            await row_gather(user_name, model_id)
 
 
 @run
@@ -516,10 +523,10 @@ async def purchase_check_retriver():
     user_dict = {}
     auth_requests.make_headers()
     async with manager.Manager.aget_ofsession(
-        backend="httpx",
+       
         sem_count=constants.getattr("API_REQ_CHECK_MAX"),
     ) as c:
-        for name in read_args.retriveArgs().check_usernames:
+        for name in settings.get_settings().check_usernames:
             user_name = profile.scrape_profile(name)["username"]
             model_id = name if name.isnumeric() else profile.get_id(user_name)
             user_dict[model_id] = user_dict.get(model_id, [])
@@ -529,7 +536,7 @@ async def purchase_check_retriver():
             oldpaid = read_check(model_id, paid_.API)
             paid = None
 
-            if len(oldpaid) > 0 and not read_args.retriveArgs().force:
+            if len(oldpaid) > 0 and not settings.get_settings().force:
                 paid = oldpaid
             elif user_name == constants.getattr("DELETED_MODEL_PLACEHOLDER"):
                 paid_user_dict = await paid_.get_all_paid_posts()
@@ -564,17 +571,17 @@ async def stories_checker_runner():
             await make_changes_to_content_tables(
                 final_post_array, model_id=model_id, username=user_name
             )
-            await row_gather(user_name, model_id, paid=True)
+            await row_gather(user_name, model_id)
 
 
 @run
 async def stories_check_retriver():
     user_dict = {}
     async with manager.Manager.aget_ofsession(
-        backend="httpx",
+       
         sem_count=constants.getattr("API_REQ_CHECK_MAX"),
     ) as c:
-        for user_name in read_args.retriveArgs().check_usernames:
+        for user_name in settings.get_settings().check_usernames:
             user_name = profile.scrape_profile(user_name)["username"]
             model_id = profile.get_id(user_name)
             user_dict[model_id] = user_dict.get(user_name, [])
@@ -595,8 +602,8 @@ async def stories_check_retriver():
 
 def url_helper():
     out = []
-    out.extend(read_args.retriveArgs().file or [])
-    out.extend(read_args.retriveArgs().url or [])
+    out.extend(settings.get_settings().file or [])
+    out.extend(settings.get_settings().url or [])
     return map(lambda x: x.strip(), out)
 
 
@@ -651,11 +658,11 @@ async def get_paid_ids(model_id, user_name):
     oldpaid = read_check(model_id, paid_.API)
     paid = None
 
-    if len(oldpaid) > 0 and not read_args.retriveArgs().force:
+    if len(oldpaid) > 0 and not settings.get_settings().force:
         paid = oldpaid
     else:
         async with manager.Manager.aget_ofsession(
-            backend="httpx", sem_count=constants.getattr("API_REQ_CHECK_MAX")
+            sem_count=constants.getattr("API_REQ_CHECK_MAX")
         ) as c:
             paid = await paid_.get_paid_posts(model_id, user_name, c=c)
             set_check(paid, model_id, paid_.API)
@@ -676,9 +683,7 @@ def start_table(ROWS_):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     ROWS = ROWS_
-    app.app(
-        table_data=ROWS
-    )
+    app.app(table_data=ROWS)
 
 
 def texthelper(text):
@@ -697,6 +702,14 @@ def texthelper(text):
 
 def unlocked_helper(ele):
     return ele.canview
+
+
+def download_type_helper(ele):
+    if ele.mpd:
+        return "protected"
+    elif ele.url:
+        return "normal"
+    return "n/a"
 
 
 def datehelper(date):
@@ -725,7 +738,7 @@ def get_media_dict(downloaded):
     return mediadict
 
 
-async def row_gather(username, model_id, paid=False):
+async def row_gather(username, model_id):
     global ROWS
     downloaded = set(
         get_media_post_ids_downloaded(model_id=model_id, username=username)
@@ -737,12 +750,13 @@ async def row_gather(username, model_id, paid=False):
     ):
         out.append(
             {
-                "index": count+1,
-                "number": count+1,
+                "index": count + 1,
+                "number": count + 1,
                 "download_cart": checkmarkhelper(ele),
                 "username": username,
                 "downloaded": (ele.id, ele.postid) in downloaded,
                 "unlocked": unlocked_helper(ele),
+                "download_type": download_type_helper(ele),
                 "other_posts_with_media": times_helper(ele, media_dict),
                 "post_media_count": len(ele._post.post_media),
                 "mediatype": ele.mediatype,
@@ -760,14 +774,6 @@ async def row_gather(username, model_id, paid=False):
         )
     ROWS = ROWS or []
     ROWS.extend(out)
-
-
-def init_media_type_helper():
-    args = read_args.retriveArgs()
-    mediatype = args.mediatype
-    args.mediatype = None
-    write_args.setArgs(args)
-    return mediatype
 
 
 def reset_time_line_cache(model_id):

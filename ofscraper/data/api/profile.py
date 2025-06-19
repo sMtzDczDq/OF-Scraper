@@ -19,9 +19,9 @@ from rich.console import Console
 from xxhash import xxh128
 
 import ofscraper.main.manager as manager
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
+import ofscraper.utils.settings as settings
 
 from ...utils import encoding
 
@@ -33,7 +33,7 @@ API = "profile"
 # can get profile from username or id
 def scrape_profile(username: Union[int, str]) -> dict:
     with manager.Manager.get_ofsession(
-        backend="httpx",
+       
     ) as c:
         return scrape_profile_helper(c, username)
 
@@ -41,7 +41,7 @@ def scrape_profile(username: Union[int, str]) -> dict:
 def scrape_profile_helper(c, username: Union[int, str]):
     data = cache.get(f"username_{username}", default=None)
     log.trace(f"username date: {data}")
-    if data and not read_args.retriveArgs().update_profile:
+    if data and not settings.get_settings().update_profile:
         return data
     try:
         with c.requests(constants.getattr("profileEP").format(username)) as r:
@@ -66,7 +66,7 @@ async def scrape_profile_helper_async(c, username: Union[int, str]):
     data = cache.get(f"username_{username}", default=None)
     log.trace(f"username date: {data}")
     url = constants.getattr("profileEP").format(username)
-    if data and not read_args.retriveArgs().update_profile:
+    if data and not settings.get_settings().update_profile:
         return data
     try:
 
@@ -146,7 +146,7 @@ def print_profile_info(info):
 
 def get_id(username, c=None):
     c = c or manager.Manager.get_ofsession(
-        backend="httpx",
+       
     )
     with c as c:
         return get_id_helper(c, username)

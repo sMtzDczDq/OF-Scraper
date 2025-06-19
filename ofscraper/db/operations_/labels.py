@@ -21,8 +21,8 @@ import ofscraper.classes.labels as labels_class
 import ofscraper.db.utils.convert as convert
 import ofscraper.db.operations_.posts as post_
 import ofscraper.db.operations_.wrapper as wrapper
-import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.db.operations_.profile import get_single_model_via_profile
+import ofscraper.utils.settings as settings
 
 console = Console()
 log = logging.getLogger("shared")
@@ -240,7 +240,7 @@ async def make_label_table_changes(
             await write_labels_table(
                 label, new_posts, model_id=model_id, username=username
             )
-        if read_args.retriveArgs().metadata and len(curr_posts) > 0:
+        if settings.get_settings().metadata and len(curr_posts) > 0:
             curr_posts = convert.converthelper(curr_posts)
             await update_labels_table(
                 label, curr_posts, model_id=model_id, username=username

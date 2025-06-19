@@ -14,24 +14,30 @@ from ofscraper.classes.sessionmanager.sessionmanager import (
 )
 from ofscraper.commands.scraper.actions.download.utils.leaky import LeakyBucket
 import ofscraper.utils.settings as settings
+from ofscraper.commands.scraper.actions.download.utils.chunk import get_chunk_timeout
 
 
 class download_session(sessionManager.sessionManager):
     def __init__(
         self, sem_count=None, retries=None, wait_min=None, wait_max=None, log=None
     ) -> None:
-        sem_count = sem_count or common_globals.sem
         retries = retries or get_download_req_retries()
         wait_min = wait_min or constants.getattr("OF_MIN_WAIT_API")
         wait_max = wait_max or constants.getattr("OF_MAX_WAIT_API")
+        read_timeout=get_chunk_timeout()
         log = log or common_globals.log
-        self.leaky_bucket = LeakyBucket(settings.get_download_limit(), 1)
+        self.leaky_bucket = LeakyBucket(settings.get_settings().download_limit, 1)
+
+
+
+
         super().__init__(
             sem_count=sem_count,
             retries=retries,
             wait_min=wait_min,
             wait_max=wait_max,
             log=log,
+            read_timeout=read_timeout
         )
 
     @contextlib.asynccontextmanager
@@ -56,19 +62,6 @@ class download_session(sessionManager.sessionManager):
         t.request = t.request
         return t
 
-    async def _aio_funct(self, method, *args, **kwargs):
-        # public function forces context manager use
-        r = await self._session._request(method, *args, **kwargs)
-        r.text_ = r.text
-        r.json_ = r.json
-        r.iter_chunked = self.chunk_with_limit(r.content.iter_chunked)
-        r.iter_chunks = self.chunk_with_limit(r.content.iter_chunks)
-        r.request = r.request_info
-        r.status_code = r.status
-        r.read_ = r.content.read
-        r.eof = r.content.at_eof
-        return r
-
     async def factoryasync(self, input):
         if callable(input):
             return input()
@@ -79,6 +72,7 @@ class download_session(sessionManager.sessionManager):
             async for chunk in funct(*args, **kwargs):
                 await self.get_token(chunk)
                 yield chunk
+
         return wrapper
 
     async def get_token(self, chunk):
@@ -86,14 +80,10 @@ class download_session(sessionManager.sessionManager):
 
 
 class cdm_session(sessionManager.sessionManager):
-    def __init__(self, backend=None, sem_count=None) -> None:
-        backend = backend or "httpx"
-        sem_count = sem_count or common_globals.sem
-        super().__init__(sem_count=sem_count, backend=backend)
+    def __init__(self,  sem_count=None) -> None:
+        super().__init__(sem_count=sem_count)
 
 
 class cdm_session_manual(ofsessionmanager.OFSessionManager):
-    def __init__(self, backend=None, sem_count=None) -> None:
-        backend = backend or "httpx"
-        sem_count = sem_count or common_globals.sem
-        super().__init__(sem_count=sem_count, backend=backend)
+    def __init__(self,  sem_count=None) -> None:
+        super().__init__(sem_count=sem_count)

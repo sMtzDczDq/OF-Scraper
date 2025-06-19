@@ -17,7 +17,6 @@ import random
 import time
 
 import ofscraper.main.manager as manager
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.context.exit as exit
@@ -25,6 +24,7 @@ import ofscraper.utils.live.screens as progress_utils
 import ofscraper.utils.live.updater as progress_updater
 
 from ofscraper.classes.sessionmanager.sessionmanager import SessionSleep
+import ofscraper.utils.settings as settings
 
 log = logging.getLogger("shared")
 warning_str = "\n[red]Current Like rate can eat through the ~1000 like limit in ~1 hour\nIncreasing the rate could lead to getting logged out[/red]"
@@ -36,7 +36,7 @@ unlike_str = "Performing Unlike Action on {name}" + warning_str
 def process_like(posts=None, model_id=None, task=None, username=None, **kwargs):
     progress_utils.switch_api_progress()
     progress_updater.update_activity_task(description=like_str.format(name=username))
-    logging.getLogger("shared_other").warning(like_str.format(name=username))
+    logging.getLogger("shared").warning(like_str.format(name=username))
     unfavorited_posts = get_posts_for_like(posts)
     posts = pre_filter(posts)
     post_ids = get_post_ids(unfavorited_posts)
@@ -47,7 +47,7 @@ def process_like(posts=None, model_id=None, task=None, username=None, **kwargs):
 def process_unlike(posts=None, model_id=None, task=None, username=None, **kwargs):
     progress_utils.switch_api_progress()
     progress_updater.update_activity_task(description=unlike_str.format(name=username))
-    logging.getLogger("shared_other").warning(unlike_str.format(name=username))
+    logging.getLogger("shared").warning(unlike_str.format(name=username))
     favorited_posts = get_posts_for_unlike(posts)
     posts = pre_filter(posts)
     post_ids = get_post_ids(favorited_posts)
@@ -106,7 +106,7 @@ def _like(model_id, username, ids: list, like_action: bool):
     with progress_utils.setup_like_progress_live():
         with manager.Manager.get_ofsession(
             sem_count=1,
-            backend="httpx",
+           
             retries=constants.getattr("API_LIKE_NUM_TRIES"),
         ) as c:
             tasks = []
@@ -177,7 +177,7 @@ def _toggle_like_requests(c, id, model_id):
         sleep=constants.getattr("SESSION_429_SLEEP_STARTER_VAL"),
         difmin=constants.getattr("SESSION_429_LIKE_INCREASE_SLEEP_TIME_DIF"),
     )
-    if not read_args.retriveArgs().force_like and cache.get(f"liked_status_{id}", None):
+    if not settings.get_settings().force_like and cache.get(f"liked_status_{id}", None):
         log.debug(f"ID: {id} marked as liked in cache")
         return 0
     max_duration = constants.getattr("MAX_SLEEP_DURATION_LIKE")
@@ -205,7 +205,7 @@ def _toggle_unlike_requests(c, id, model_id):
         difmin=constants.getattr("SESSION_429_LIKE_INCREASE_SLEEP_TIME_DIF"),
     )
     if (
-        not read_args.retriveArgs().force_like
+        not settings.get_settings().force_like
         and cache.get(f"liked_status_{id}", None) is False
     ):
         log.debug(f"ID: {id} marked as unliked in cache")

@@ -3,10 +3,6 @@ import threading
 
 import ofscraper.utils.constants as constants
 import ofscraper.utils.logs.globals as log_globals
-from ofscraper.utils.logs.stdout import (
-    stop_flush_main_thread,
-    stop_stdout_main_logthread,
-)
 
 
 def gracefulClose():
@@ -16,8 +12,6 @@ def gracefulClose():
         f"Main Process threads before closing log threads {threading.enumerate()}"
     )
     # closeOther()
-    # closeMain()
-    closeFlush()
     stdout.debug(
         f"Main Process threads after closing log threads {threading.enumerate()}"
     )
@@ -33,7 +27,6 @@ def forcedClose():
     log_globals.flush_event.set()
     # closeOther()
     # closeMain()
-    closeFlush()
     closeQueue()
 
 
@@ -41,31 +34,12 @@ def daemonClose():
     sendCloseMessage()
     # closeOther()
     # closeMain()
-    closeFlush()
     clearHandlers()
 
 
 def sendCloseMessage():
     logging.getLogger("shared").error("Finished Script")
-    # num_loggers = len(logging.getLogger("shared").handlers)
-    # if num_loggers > 0:
-    #     logging.getLogger("shared").handlers[0].queue.put("None")
-    # if num_loggers > 1:
-    #     logging.getLogger("shared").handlers[-1].queue.put("None")
 
-
-def closeMain():
-    if log_globals.main_event.is_set():
-        stop_stdout_main_logthread(timeout=constants.getattr("FORCED_THREAD_TIMEOUT"))
-    elif not log_globals.main_event.is_set():
-        stop_stdout_main_logthread()
-
-
-def closeFlush():
-    if log_globals.flush_event.is_set():
-        stop_flush_main_thread(timeout=constants.getattr("FORCED_THREAD_TIMEOUT"))
-    elif not log_globals.flush_event.is_set():
-        stop_flush_main_thread()
 
 
 def closeOther():

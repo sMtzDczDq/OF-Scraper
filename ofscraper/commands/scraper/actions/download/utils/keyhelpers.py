@@ -16,13 +16,15 @@ import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
 import ofscraper.utils.settings as settings
 from ofscraper.classes.sessionmanager.download import cdm_session_manual
-from ofscraper.commands.scraper.actions.utils.retries import get_cmd_download_req_retries
+from ofscraper.commands.scraper.actions.utils.retries import (
+    get_cmd_download_req_retries,
+)
 from ofscraper.commands.scraper.actions.utils.log import get_medialog
 from ofscraper.utils.system.subprocess import run
+from ofscraper.commands.scraper.actions.download.utils.ffmpeg import get_ffmpeg
 
 
 log = None
-
 
 def setLog(input_):
     global log
@@ -33,7 +35,7 @@ async def un_encrypt(item, c, ele, input_=None):
     try:
         setLog(input_ or common_globals.log)
         key = None
-        keymode = settings.get_key_mode()
+        keymode = settings.get_settings().key_mode
         past_key = (
             await asyncio.get_event_loop().run_in_executor(
                 common_globals.thread, partial(cache.get, ele.license)
@@ -66,7 +68,7 @@ async def un_encrypt(item, c, ele, input_=None):
         )
         r = run(
             [
-                settings.get_ffmpeg(),
+                get_ffmpeg(),
                 "-decryption_key",
                 ffmpeg_key,
                 "-i",
@@ -243,8 +245,8 @@ async def key_helper_manual(c, pssh, licence_url, id):
         pssh_obj = PSSH(pssh)
 
         # load device
-        private_key = pathlib.Path(settings.get_private_key()).read_bytes()
-        client_id = pathlib.Path(settings.get_client_id()).read_bytes()
+        private_key = pathlib.Path(settings.get_settings().private_key).read_bytes()
+        client_id = pathlib.Path(settings.get_settings().client_id).read_bytes()
         device = Device(
             security_level=3,
             private_key=private_key,

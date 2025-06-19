@@ -18,7 +18,7 @@ fileHashes = {}
 def get_hash(file_data, mediatype=None):
     global fileHashes
     hash = None
-    if settings.get_hash(mediatype=mediatype) is None:
+    if settings.get_settings().hash is None:
         return
     if isinstance(file_data, placeholder.Placeholders):
         file_data = file_data.trunicated_filepath
@@ -42,7 +42,7 @@ def _calc_hash(file_data):
 
 
 def remove_dupes_hash(username, model_id, mediatype=None):
-    if not settings.get_hash():
+    if not settings.get_settings().hash:
         return
     hashes = get_dupe_media_hashes(username=username, model_id=model_id, mediatype=None)
     for hash in hashes:

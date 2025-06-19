@@ -22,8 +22,8 @@ import ofscraper.classes.of.posts as posts_
 import ofscraper.db.utils.convert as convert
 import ofscraper.db.operations_.media as media
 import ofscraper.db.operations_.wrapper as wrapper
-import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.db.operations_.profile import get_single_model_via_profile
+import ofscraper.utils.settings as settings
 
 console = Console()
 log = logging.getLogger("shared")
@@ -349,7 +349,7 @@ async def make_post_table_changes(all_posts, model_id=None, username=None, **kwa
     if len(new_posts) > 0:
         new_posts = convert.converthelper(new_posts)
         await write_post_table(new_posts, model_id=model_id, username=username)
-    if read_args.retriveArgs().metadata and len(curr_posts) > 0:
+    if settings.get_settings().metadata and len(curr_posts) > 0:
         curr_posts = convert.converthelper(curr_posts)
         await update_posts_table(curr_posts, model_id=model_id, username=username)
 

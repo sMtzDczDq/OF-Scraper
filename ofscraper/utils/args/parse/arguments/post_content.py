@@ -1,11 +1,12 @@
 import cloup as click
 
-from ofscraper.utils.args.callbacks.string import (
+from ofscraper.utils.args.callbacks.parse.string import (
     StringSplitNormalizeParse,
     StringSplitParse,
     StringSplitParseTitle,
     StringTupleList,
 )
+from ofscraper.utils.args.callbacks.arguments.post import set_download_type_flag
 from ofscraper.utils.args.types.choice import MultiChoice, MultiChoicePost
 
 # Define individual options
@@ -88,7 +89,7 @@ download_area_option = click.option(
             "Messages",
             "Timeline",
             "Pinned",
-            "Stread_args.retriveArgs().download_areaories",
+            "Stsettings.get_settings().download_areaories",
             "Purchased",
             "Profile",
             "Streams",
@@ -295,6 +296,7 @@ timed_only_option = click.option(
     [select one --only-timed or --skip-timed]""",
 )
 
+
 post_id_filter_option = click.option(
     "-pd",
     "--post-id",
@@ -315,22 +317,21 @@ timeline_strict = click.option(
     is_flag=True,
 )
 
-
-protected_only = click.option(
-    "-to",
-    "--protected-only",
-    help="Restricts downloads to content that requires decryption.",
-    required=False,
-    is_flag=True,
+download_type_option = click.option(
+    "-to/-no",
+    "--protected-only/--normal-only",
+    "download_type",
+    help="""
+        \b
+        Filter downloads by type.
+        --protected-only: For content that requires decryption.
+        --normal-only: For content that does not require decryption.
+    """,
+    default=None,
+    callback=set_download_type_flag,
+    is_flag=True # is_flag is still needed for the split flag to work
 )
 
-normal_only = click.option(
-    "-no",
-    "--normal-only",
-    help="Restricts downloads to content that does not require decryption.",
-    required=False,
-    is_flag=True,
-)
 
 max_post_count_option = click.option(
     "-xc",

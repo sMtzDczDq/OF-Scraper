@@ -1,8 +1,7 @@
-Widgets="""
+Widgets = """
  Sidebar.-hidden {
         display: none;
     }
-
 Widget {
     column-span:4;
     row-span:2;
@@ -18,7 +17,7 @@ height:3;
 }
 """
 
-Table="""
+Table = """
  #data_table{
     margin-bottom:4;
     margin-top:1;
@@ -45,8 +44,8 @@ Table="""
 
 """
 
-Options="""
-#options_sidebar, #page_option_sidebar{
+Options = """
+#options_sidebar, #page_option_sidebar,#download_option_sidebar{
         width: 45%;
         dock: left;
         layer: sidebar;
@@ -73,8 +72,13 @@ Options="""
 
 """
 
-CSS="""
+CSS = (
+    """
     #post_id,#media_id{
     column-span:2;
     }
-""" + Widgets+Table+Options
+"""
+    + Widgets
+    + Table
+    + Options
+)

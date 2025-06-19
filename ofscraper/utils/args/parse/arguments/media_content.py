@@ -3,7 +3,7 @@ import cloup as click
 # import click
 from humanfriendly import parse_size
 
-from ofscraper.utils.args.callbacks.string import (
+from ofscraper.utils.args.callbacks.parse.string import (
     StringSplitParse,
     StringSplitParseTitle,
 )
@@ -47,7 +47,7 @@ min_size_option = click.option(
 
 
 media_id_filter = click.option(
-    "-md",
+    "-mid",
     "--media-id",
     help="Filter media based on media id",
     required=False,
@@ -73,7 +73,7 @@ length_min = click.option(
 
 
 max_media_count_option = click.option(
-    "-xc",
+    "-mxc",
     "--max-media-count",
     "max_count",
     help="Maximum number of media to process",

@@ -11,9 +11,10 @@ r"""
                                                                                       
 """
 
-from functools import partial
 import pathlib
+import os
 from humanfriendly import format_size
+import psutil
 
 import ofscraper.utils.constants as constants
 import ofscraper.utils.live.updater as progress_updater
@@ -28,6 +29,9 @@ from ofscraper.db.operations_.media import download_media_update
 
 
 class DownloadManager:
+    def __init__(self):
+        self.total = None
+        self.process= psutil.Process(os.getpid())
 
     async def _add_download_job_task(
         self, ele, total=None, placeholderObj=None, tempholderObj=None
@@ -44,14 +48,15 @@ class DownloadManager:
         if task1:
             progress_updater.remove_download_job_task(task1)
 
-    async def _total_change_helper(self, past_total, new_total, **kwargs):
-        if not new_total and not past_total:
+    async def _total_change_helper(self, new_total, **kwargs):
+        if not self.total and not new_total:
             return
-        elif not past_total:
+        elif not self.total:
             await update_total(new_total)
-        elif past_total and new_total - past_total != 0:
-            await update_total(new_total - past_total)
-
+            self.total = new_total
+        elif self.total and new_total - self.total != 0:
+            await update_total(new_total - self.total)
+            self.total = new_total
 
     def _get_resume_header(self, resume_size, total):
         return (
@@ -61,7 +66,7 @@ class DownloadManager:
         )
 
     def _get_resume_size(self, tempholderObj, mediatype=None):
-        if not settings.get_auto_resume(mediatype=mediatype):
+        if not settings.get_settings(mediatype=mediatype).auto_resume:
             pathlib.Path(tempholderObj.tempfilepath).unlink(missing_ok=True)
             return 0
         return (
@@ -84,8 +89,8 @@ class DownloadManager:
         total = int(total)
         if total == 0:
             return 0
-        file_size_max = settings.get_size_max(mediatype=ele.mediatype)
-        file_size_min = settings.get_size_min(mediatype=ele.mediatype)
+        file_size_max = settings.get_settings(mediatype=ele.mediatype).size_max
+        file_size_min = settings.get_settings(mediatype=ele.mediatype).size_min
         if int(file_size_max) > 0 and (int(total) > int(file_size_max)):
             ele.mediatype = "forced_skipped"
             common_globals.log.debug(

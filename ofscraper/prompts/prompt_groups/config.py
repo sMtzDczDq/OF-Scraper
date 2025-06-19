@@ -93,10 +93,9 @@ def funct(prompt_):
     [Advanced Options]
     code-execution: allow eval on custom_val
     dynamic-mode-default: source of signed header values
-    backend: which downloader to utilize
     downloadbars: toggle for download-bars
     cache-mode: cache type for Disk Cache
-    appendlog: toggle for appending log values
+    rotate_logs: toggle for rotating logs
     custom_values: custom values/functions for placeholders
     sanitize_text: toggle for cleaning text for db
     temp_dir: directory for storing temp files
@@ -104,6 +103,7 @@ def funct(prompt_):
     enable_auto_after: whether to dynamically set --after: default True
     default_user_list: default user list for --action
     default_black_list: default black list for --action
+    logs_expire_time: max age in days for a log before it is autodelete
     remove_hash_match: remove files if hash matches
     ----------------------------------------------------------
     [Response Type]
@@ -281,11 +281,6 @@ def binary_config():
                 "type": "filepath",
                 "name": "ffmpeg",
                 "message": "ffmpeg path: ",
-                "validate": prompt_validators.MultiValidator(
-                    EmptyInputValidator(),
-                    prompt_validators.ffmpegpathvalidator(),
-                    prompt_validators.ffmpegexecutevalidator(),
-                ),
                 "option_instruction": """
 Certain content requires decryption to process please provide the full path to ffmpeg
 """,
@@ -536,13 +531,6 @@ def advanced_config() -> dict:
                 "default": data.cache_mode_helper(),
                 "choices": ["sqlite", "json", "disabled", "api_disabled"],
             },
-            {
-                "type": "list",
-                "name": "backend",
-                "choices": [Choice("aio", "aiohttp"), Choice("httpx", "httpx")],
-                "message": "Select Which Backend you want:\n",
-                "default": data.get_backend() or "",
-            },
             # value because of legacy config values
             {
                 "type": "input",
@@ -580,9 +568,9 @@ def advanced_config() -> dict:
             },
             {
                 "type": "list",
-                "name": "appendlog",
-                "message": "append logs into daily log files",
-                "default": data.get_appendlog(),
+                "name": "rotate_logs",
+                "message": "Whether to rotate logs or not",
+                "default": data.get_rotate_logs(),
                 "choices": [Choice(True, "Yes"), Choice(False, "No")],
             },
             {
@@ -638,6 +626,18 @@ Main user list with all active+expired users can be called main or ofscraper.mai
 Active user list can be called active or ofscraper.active
 Expired user list can be called expired or ofscraper.expired
 List are case insensitive\n
+""",
+            },
+
+                        {
+                "type": "number",
+                "name": "logs_expire_time",
+                "float_allowed":True,
+                "message": "Logs expire Time",
+                "default": data.get_logs_expire() or 0,
+                "option_instruction": """
+Logs will auto delete after the selected amount of time has passed
+If value is 'None' or '0' no logs will be touched
 """,
             },
             {

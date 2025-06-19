@@ -232,13 +232,7 @@ def get_InfiniteLoop(config=None):
 def get_enable_after(config=None):
     if config is False:
         return constants.ENABLE_AUTO_AFTER_DEFAULT
-    val = not config.get("disable_auto_after")
-    val = (
-        not config.get("advanced_options", {}).get("disable_auto_after")
-        if val is None
-        else val
-    )
-    val = config.get("enable_auto_after") if val is None else val
+    val = config.get("enable_auto_after")
     val = (
         config.get("advanced_options", {}).get("enable_auto_after")
         if val is None
@@ -266,6 +260,15 @@ def get_default_userlist(config=None):
     )
 
 
+@wrapper.config_reader
+def get_logs_expire(config=None):
+   if config==False:
+       return None
+   return(
+        config.get("logs_expire_time")
+        if not any(x == config.get("logs_expire_time") for x in [None, ""])
+        else config.get("advanced_options", {}).get("logs_expire_time")
+    )
 @wrapper.config_reader
 def get_post_download_script(config=None):
     if config is False:
@@ -651,18 +654,6 @@ def get_part_file_clean(config=None, mediatype=None):
         return config.get("partfileclean") is False
     return constants_attr.getattr("RESUME_DEFAULT")
 
-
-@wrapper.config_reader
-def get_backend(config=None):
-    if config is False:
-        return constants.BACKEND_DEFAULT
-    return (
-        config.get("backend")
-        or config.get("advanced_options", {}).get("backend")
-        or constants_attr.getattr("BACKEND_DEFAULT")
-    )
-
-
 @wrapper.config_reader
 def get_download_semaphores(config=None):
     if config is False:
@@ -718,15 +709,15 @@ def cache_mode_helper(config=None):
 
 
 @wrapper.config_reader
-def get_appendlog(config=None):
+def get_rotate_logs(config=None):
     if config is False:
-        return constants.APPEND_DEFAULT
+        return constants.ROTATE_DEFAULT
     value = (
-        config.get("appendlog")
+        config.get("rotate_logs")
         if config.get("appendlog") is not None
-        else config.get("advanced_options", {}).get("appendlog")
+        else config.get("advanced_options", {}).get("rotate_logs")
     )
-    return value if value is not None else constants_attr.getattr("APPEND_DEFAULT")
+    return value if value is not None else constants_attr.getattr("ROTATE_DEFAULT")
 
 
 @wrapper.config_reader

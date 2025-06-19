@@ -17,17 +17,17 @@ import traceback
 
 import ofscraper.data.api.profile as profile
 import ofscraper.main.manager as manager
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as constants
 import ofscraper.utils.live.updater as progress_utils
 from ofscraper.utils.context.run_async import run
+import ofscraper.utils.settings as settings
 
 log = logging.getLogger("shared")
 
 
 @run
 async def get_subscription(accounts=None):
-    accounts = accounts or read_args.retriveArgs().usernames
+    accounts = accounts or settings.get_settings().usernames
     if not isinstance(accounts, list) and not isinstance(accounts, set):
         accounts = set([accounts])
     task1 = progress_utils.add_userlist_task(

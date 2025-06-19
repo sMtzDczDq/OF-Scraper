@@ -1,12 +1,12 @@
 import ofscraper.data.api.me as me
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.console as console
 import ofscraper.utils.encoding as encoding
 import ofscraper.utils.profiles.data as profile_data
 
+import ofscraper.utils.settings as settings
 
 def parse_user():
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return ("anon", "anon")
     profile = profile_data.get_my_info()
     name = encoding.encode_utf_16(profile["name"])

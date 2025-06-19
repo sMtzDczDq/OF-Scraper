@@ -113,7 +113,7 @@ class DBManager:
         # downloaded
         if args.downloaded:
             medias = [media for media in medias if media["downloaded"]]
-        elif args.not_downloaded:
+        elif args.downloaded is False:
             medias = [media for media in medias if not media["downloaded"]]
 
         # download type
@@ -124,71 +124,71 @@ class DBManager:
         # unlocked
         if args.unlocked:
             medias = [media for media in medias if media["unlocked"]]
-        elif args.locked:
+        elif args.unlocked is False:
             medias = [media for media in medias if not media["unlocked"]]
         # preview
         if args.preview:
             medias = [media for media in medias if media["preview"]]
-        elif args.not_preview:
+        elif args.preview is False:
             medias = [media for media in medias if not media["preview"]]
         # size
-        if settings.get_size_max():
+        if settings.get_settings().size_max:
             medias = [
                 media
                 for media in medias
-                if (media["size"] or 0) <= settings.get_size_max()
+                if (media["size"] or 0) <= settings.get_settings().size_max
             ]
-        if settings.get_size_min():
+        if settings.get_settings().size_min:
             medias = [
                 media
                 for media in medias
-                if (media["size"] or 0) >= settings.get_size_min()
+                if (media["size"] or 0) >= settings.get_settings().size_min
             ]
         # length
-        if settings.get_max_length():
+        if settings.get_settings().length_max:
             medias = [
                 media
                 for media in medias
-                if self._convert_seconds(media) <= settings.get_max_length()
+                if self._convert_seconds(media) <= settings.get_settings().length_max
             ]
-        if settings.get_min_length():
+        if settings.get_settings().length_min:
             medias = [
                 media
                 for media in medias
-                if self._convert_seconds(media) >= settings.get_min_length()
+                if self._convert_seconds(media) >= settings.get_settings().length_min
             ]
         # date
-        if read_args.retriveArgs().posted_before:
+        if settings.get_settings().posted_before:
             medias = [
                 media
                 for media in medias
                 if arrow.get(media["posted_at"] or 0)
-                <= read_args.retriveArgs().posted_before
+                <= settings.get_settings().posted_before
             ]
-        if read_args.retriveArgs().posted_after:
+        if settings.get_settings().posted_after:
             medias = [
                 media
                 for media in medias
                 if arrow.get(media["posted_at"] or 0)
-                >= read_args.retriveArgs().posted_after
+                >= settings.get_settings().posted_after
             ]
-        if read_args.retriveArgs().created_after:
+        if settings.get_settings().created_after:
             medias = [
                 media
                 for media in medias
                 if arrow.get(media["created_at"] or 0)
-                >= read_args.retriveArgs().created_after
+                >= settings.get_settings().created_after
             ]
-        if read_args.retriveArgs().created_before:
+        if settings.get_settings().created_before:
             medias = [
                 media
                 for media in medias
                 if arrow.get(media["created_at"] or 0)
-                <= read_args.retriveArgs().created_before
+                <= settings.get_settings().created_before
             ]
         # media type
         if all(
-            element in settings.get_mediatypes()
+            element in settings.get_settings().mediatypes
             for element in ["Audios", "Videos", "Images"]
         ):
             pass
@@ -196,7 +196,7 @@ class DBManager:
             medias = [
                 media
                 for media in medias
-                if media["media_type"] in settings.get_mediatypes()
+                if media["media_type"] in settings.get_settings().mediatypes
             ]
         # id filters
         if args.post_id:
@@ -208,16 +208,16 @@ class DBManager:
     def get_max_post(self):
         medias = self.media
         medias = (
-            medias[: settings.get_max_post_count()]
-            if settings.get_max_post_count()
+            medias[: settings.get_settings().max_post_count]
+            if settings.get_settings().max_post_count
             else medias
         )
         self.media = medias
 
     def sort_media(self):
         medias = self.media
-        reversed = not read_args.retriveArgs().db_asc
-        sort = read_args.retriveArgs().db_sort
+        reversed = not settings.get_settings().db_asc
+        sort = settings.get_settings().db_sort
         if sort == "posted":
             medias = sorted(
                 medias, key=lambda x: arrow.get(x["posted_at"] or 0), reverse=reversed
@@ -333,7 +333,7 @@ class DBManager:
             data (list): The list of dictionaries.
             filename (str): The name of the CSV file to be created.
         """
-        if not read_args.retriveArgs().export:
+        if not settings.get_settings().export:
             return
         self.clean_dictionaries()
         self.write_csv()
@@ -348,7 +348,7 @@ class DBManager:
                     header.append(key)
                     type_hints[key] = type(value)
         # Create a CSV writer
-        filename = read_args.retriveArgs().export.with_suffix(".csv")
+        filename = settings.get_settings().export.with_suffix(".csv")
         filename.parent.mkdir(parents=True, exist_ok=True)
         with open(filename, "w", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=header)

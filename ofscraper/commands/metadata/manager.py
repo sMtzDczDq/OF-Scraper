@@ -19,7 +19,6 @@ from functools import partial
 import ofscraper.classes.placeholder as placeholder
 import ofscraper.commands.scraper.actions.utils.general as common
 import ofscraper.commands.scraper.actions.utils.paths.media as media
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
 import ofscraper.utils.hash as hash
 import ofscraper.utils.settings as settings
@@ -33,6 +32,7 @@ from ofscraper.classes.sessionmanager.sessionmanager import FORCED_NEW, SIGN
 import ofscraper.utils.constants as constants
 import ofscraper.commands.scraper.actions.utils.globals as common_globals
 from ofscraper.commands.scraper.actions.utils.log import get_medialog
+
 
 class MetaDataManager:
 
@@ -78,9 +78,9 @@ class MetaDataManager:
         return ele.mediatype if effected else "forced_skipped"
 
     def _metadata_downloaded_helper(self, placeholderObj, prevData):
-        if read_args.retriveArgs().metadata == "check":
+        if settings.get_settings().metadata == "check":
             return prevData["downloaded"] if prevData else None
-        elif read_args.retriveArgs().metadata == "complete":
+        elif settings.get_settings().metadata == "complete":
             return 1
         # for update
         elif pathlib.Path(placeholderObj.trunicated_filepath).exists():
@@ -94,7 +94,7 @@ class MetaDataManager:
         return 0
 
     def _metadata_file_helper(self, placeholderObj, prevData):
-        if read_args.retriveArgs().metadata != "update":
+        if settings.get_settings().metadata != "update":
             return str(placeholderObj.trunicated_filename)
         # for update
         elif pathlib.Path(placeholderObj.trunicated_filepath).exists():
@@ -110,7 +110,7 @@ class MetaDataManager:
         return str(placeholderObj.trunicated_filename)
 
     def _metadata_dir_helper(self, placeholderObj, prevData):
-        if read_args.retriveArgs().metadata != "update":
+        if settings.get_settings().metadata != "update":
             return str(placeholderObj.trunicated_filedir)
         # for update
         elif pathlib.Path(placeholderObj.trunicated_filedir).exists():

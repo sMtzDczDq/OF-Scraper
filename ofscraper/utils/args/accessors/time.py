@@ -1,5 +1,6 @@
 import arrow
 import ofscraper.utils.args.accessors.read as read_args
+import ofscraper.utils.settings as settings
 
 now = None
 
@@ -44,7 +45,7 @@ def get_like_before():
 
 
 def get_like_after():
-    return arrow.get(read_args.retriveArgs().like_after or 2000)
+    return arrow.get(settings.get_settings().like_after or 2000)
 
 
 def get_now():

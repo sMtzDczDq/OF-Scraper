@@ -11,14 +11,14 @@ import ofscraper.utils.auth.utils.prompt as auth_prompt
 import ofscraper.utils.paths.common as common_paths
 from ofscraper.utils.auth.utils.warning.check import check_auth_warning
 from ofscraper.utils.auth.utils.warning.warning import authwarning
-import ofscraper.utils.args.accessors.read as read_args
+import ofscraper.utils.settings as settings
 
 
 console = Console()
 
 
 def make_auth(auth=None):
-    if read_args.retriveArgs().auth_fail:
+    if settings.get_settings().auth_fail:
         logging.getLogger("shared").info("auth failed quitting on error")
         quit()
     while True:

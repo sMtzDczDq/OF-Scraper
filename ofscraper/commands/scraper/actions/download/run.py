@@ -28,9 +28,7 @@ from ofscraper.commands.scraper.actions.download.managers.main_download import (
     MainDownloadManager,
 )
 
-
 async def consumer(aws, task1, medialist, lock):
-
     while True:
         ele = None
         async with lock:

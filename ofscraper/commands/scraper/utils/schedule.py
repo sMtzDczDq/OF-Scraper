@@ -5,22 +5,22 @@ import time
 import traceback
 from functools import partial
 
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.args.mutators.before as before_arg
 import ofscraper.utils.logs.logs as logs
-import ofscraper.utils.logs.other as other_logger
+import ofscraper.utils.logs.logger as logger
 import ofscraper.main.manager as manager
 from ofscraper.commands.scraper.utils.jobqueue import jobqueue
+import ofscraper.utils.settings as settings
 
 log = logging.getLogger("shared")
 
 
 def set_schedule(*functs):
-    sleep = min(max(read_args.retriveArgs().daemon / 5, 1), 60)
+    sleep = min(max(settings.get_settings().daemon / 5, 1), 60)
     while True:
         try:
             jobqueue.join()
-            next = arrow.now().shift(minutes=read_args.retriveArgs().daemon)
+            next = arrow.now().shift(minutes=settings.get_settings().daemon)
             log.debug(f"Next run at ~ {next.format('MM-DD hh:mm:ss A')}")
             schedule.every().day.at(next.format("HH:mm:ss")).do(
                 schedule_helper, *functs
@@ -34,7 +34,7 @@ def set_schedule(*functs):
 
 
 def schedule_helper(*functs):
-    jobqueue.put(other_logger.updateOtherLoggerStream)
+    jobqueue.put(logger.resetLogger)
     jobqueue.put(logs.printStartValues)
     jobqueue.put(
         partial(manager.Manager.model_manager.getselected_usernames, rescan=True)

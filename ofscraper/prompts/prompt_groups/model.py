@@ -24,8 +24,8 @@ import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
 import ofscraper.prompts.utils.model_helpers as modelHelpers
 import ofscraper.prompts.utils.prompt_helpers as prompt_helpers
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as constants
+import ofscraper.utils.settings as settings
 
 console = Console()
 models = None
@@ -89,8 +89,8 @@ def modify_subtype_prompt(args):
                 "name": "renewal",
                 "default": (
                     True
-                    if read_args.retriveArgs().renewal
-                    else False if read_args.retriveArgs().renewal is False else None
+                    if settings.get_settings().renewal
+                    else False if settings.get_settings().renewal is False else None
                 ),
                 "message": "Filter account by whether it has a renewal date",
                 "choices": [
@@ -104,8 +104,8 @@ def modify_subtype_prompt(args):
                 "name": "expire",
                 "default": (
                     True
-                    if read_args.retriveArgs().sub_status
-                    else False if read_args.retriveArgs().sub_status is False else None
+                    if settings.get_settings().sub_status
+                    else False if settings.get_settings().sub_status is False else None
                 ),
                 "message": "Filter accounts based on access to content via a subscription",
                 "choices": [
@@ -146,10 +146,10 @@ def modify_active_prompt(args):
                 "validate": prompt_validators.datevalidator(),
                 "filter": lambda x: arrow.get(x or 0),
                 "default": (
-                    arrow.get(read_args.retriveArgs().last_seen_after).format(
+                    arrow.get(settings.get_settings().last_seen_after).format(
                         constants.getattr("PROMPT_DATE_FORMAT")
                     )
-                    if read_args.retriveArgs().last_seen_after
+                    if settings.get_settings().last_seen_after
                     else ""
                 ),
             },
@@ -162,10 +162,10 @@ def modify_active_prompt(args):
                 "validate": prompt_validators.datevalidator(),
                 "filter": lambda x: arrow.get(x or 0),
                 "default": (
-                    arrow.get(read_args.retriveArgs().last_seen_before).format(
+                    arrow.get(settings.get_settings().last_seen_before).format(
                         constants.getattr("PROMPT_DATE_FORMAT")
                     )
-                    if read_args.retriveArgs().last_seen_before
+                    if settings.get_settings().last_seen_before
                     else ""
                 ),
             },
@@ -211,8 +211,8 @@ def modify_promo_prompt(args):
                 "name": "free-trial",
                 "default": (
                     True
-                    if read_args.retriveArgs().free_trial is True
-                    else False if read_args.retriveArgs().free_trial is False else None
+                    if settings.get_settings().free_trial is True
+                    else False if settings.get_settings().free_trial is False else None
                 ),
                 "message": "Filter Accounts By whether the account is a free trial",
                 "choices": [
@@ -238,8 +238,8 @@ def modify_promo_prompt(args):
                     "message": "Which kind of promo(s) do you want to enable",
                     "default": (
                         True
-                        if read_args.retriveArgs().promo
-                        else False if read_args.retriveArgs().promo is False else None
+                        if settings.get_settings().promo
+                        else False if settings.get_settings().promo is False else None
                     ),
                     "choices": [
                         Choice({"all_promo": True, "promo": True}, "Any Promo"),
@@ -279,11 +279,9 @@ def modify_promo_prompt(args):
                     "message": f"Filter accounts presence of {'Any Promotions' if promo_type=='all_promo' else 'Claimable Promotions'}",
                     "default": (
                         True
-                        if read_args.retriveArgs()[promo_type]
+                        if settings.get_settings()[promo_type]
                         else (
-                            False
-                            if read_args.retriveArgs()[promo_type] is False
-                            else None
+                            False if settings.get_settings()[promo_type] is False else None
                         )
                     ),
                     "choices": [

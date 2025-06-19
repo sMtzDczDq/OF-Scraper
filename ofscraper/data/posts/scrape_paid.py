@@ -15,9 +15,8 @@ from ofscraper.commands.utils.strings import (
 )
 from ofscraper.utils.context.run_async import run
 from ofscraper.main.close.final.final_user import post_user_script
-from ofscraper.utils.args.accessors.command import get_command
 import ofscraper.main.manager as manager
-
+import ofscraper.utils.settings as settings
 
 log = logging.getLogger("shared")
 
@@ -82,7 +81,7 @@ def process_user_info_printer(
             )
         )
     )
-    logging.getLogger("shared_other").warning(
+    logging.getLogger("shared").warning(
         log_progress.format(
             username=username, model_id=model_id, count=count + 1, length=length
         )
@@ -94,7 +93,7 @@ async def process_user(value, length):
     username = value["username"]
     posts = value["posts"]
     medias = value["medias"]
-    if get_command() == "metadata":
+    if settings.get_settings().command == "metadata":
         data = await metadata.metadata_process(username, model_id, medias, posts=posts)
     else:
         data, _ = await download.download_process(

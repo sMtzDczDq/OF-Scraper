@@ -1,13 +1,14 @@
 # checkmode  args
 import cloup as click
 
-from ofscraper.utils.args.callbacks.file import FileCallback
-from ofscraper.utils.args.callbacks.string import (
+from ofscraper.utils.args.callbacks.parse.file import FileCallback
+from ofscraper.utils.args.callbacks.parse.string import (
     StringSplitParse,
     StringSplitParseTitle,
 )
 from ofscraper.utils.args.types.choice import MultiChoice
 
+# check
 check_areas = click.option(
     "-ca",
     "--check-area",
@@ -66,6 +67,7 @@ user_option = click.option(
 force = click.option(
     "-fo",
     "--force",
+    "--forced",
     help="Force retrieval of new posts info from API",
     is_flag=True,
     default=False,
@@ -124,23 +126,4 @@ check_mode_media_sort = click.option(
             "text",
         ]
     ),
-)
-
-check_post_id_filter_option = click.option(
-    "-pd",
-    "--post-id",
-    "--postid",
-    "post_id",
-    help="Filter posts based on post id",
-    required=False,
-    # type=click.STRING,
-)
-
-
-check_media_id_filter_option = click.option(
-    "-md",
-    "--media-id",
-    help="Filter media based on media id",
-    required=False,
-    type=click.STRING,
 )

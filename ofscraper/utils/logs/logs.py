@@ -49,7 +49,7 @@ def print_system_log():
     )
 
     # print info
-    log.info(f"Log Level: {settings.get_log_level()}")
+    log.info(f"Log Level: {settings.get_settings().log_level}")
     log.info(f"version: {__version__}")
     log.debug(platform.platform())
     log.info(f"config path: {str(common_paths.get_config_path())}")
@@ -75,7 +75,7 @@ def print_config():
 
 def print_start_message():
     log = logging.getLogger("shared")
-    with manager.Manager.get_session(backend="httpx") as sess:
+    with manager.Manager.get_session() as sess:
         with sess.requests(
             url="https://raw.githubusercontent.com/datawhores/messages/main/ofscraper.MD"
         ) as j:
@@ -87,7 +87,7 @@ def print_start_message():
 
 def print_latest_version():
     log = logging.getLogger("shared")
-    with manager.Manager.get_session(backend="httpx") as sess:
+    with manager.Manager.get_session() as sess:
         with sess.requests(url="https://pypi.org/pypi/ofscraper/json") as j:
             data = j.json()
             if not data:
@@ -102,7 +102,7 @@ def print_latest_version():
                     "[bold yellow]OF-Scraper can't check version (probably from zip)[/bold yellow]"
                 )
             elif ".dev" in __version__:
-                log.error("OF-Scraper up to date[/bold yellow]")
+                log.error("[bold yellow]OF-Scraper up to date[/bold yellow]")
             else:
                 log.error(
                     f"[bold yellow]new version of OF-Scraper available[/bold yellow]: [bold]{new_version}[/bold]"
@@ -111,7 +111,7 @@ def print_latest_version():
 
 
 def discord_warning():
-    if read_args.retriveArgs().discord == "DEBUG":
+    if settings.get_settings().discord_level == "DEBUG":
         console.get_shared_console().print(
             "[bold red]Warning Discord with DEBUG is not recommended\nAs processing messages is much slower compared to other[/bold red]"
         )

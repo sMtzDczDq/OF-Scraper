@@ -1,17 +1,15 @@
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.constants as const
-from ofscraper.utils.args.accessors.command import get_command
-from ofscraper.utils.args.accessors.actions import get_actions
+import ofscraper.utils.settings as settings
 
 
 def get_like_area():
     post = None
     all_choices = ["Archived", "Timeline", "Pinned", "Streams"]
     all_choices.append("Label") if const.getattr("INCLUDE_LABELS_ALL") else None
-    if len(read_args.retriveArgs().like_area or []) == 0:
-        post = set(read_args.retriveArgs().posts or [])
+    if len(settings.get_settings().like_area or []) == 0:
+        post = set(settings.get_settings().posts or [])
     else:
-        post = set(read_args.retriveArgs().like_area or [])
+        post = set(settings.get_settings().like_area or [])
     if "All" in post:
         post.update(set(all_choices))
     return finalize_choice(all_choices, post)
@@ -31,10 +29,10 @@ def get_download_area():
         "Streams",
     ]
     all_choices.append("Label") if const.getattr("INCLUDE_LABELS_ALL") else None
-    if len(read_args.retriveArgs().download_area or []) == 0:
-        post = set(read_args.retriveArgs().posts or [])
+    if len(settings.get_settings().download_area or []) == 0:
+        post = set(settings.get_settings().posts or [])
     else:
-        post = set(read_args.retriveArgs().download_area or [])
+        post = set(settings.get_settings().download_area or [])
     if "All" in post:
         post.update(set(all_choices))
     return finalize_choice(all_choices, post)
@@ -54,7 +52,7 @@ def get_text_area():
         "Streams",
     ]
     all_choices.append("Label") if const.getattr("INCLUDE_LABELS_ALL") else None
-    post = set(read_args.retriveArgs().download_text or [])
+    post = set(settings.get_settings().download_text or [])
     if "All" in post:
         post.update(set(all_choices))
     return finalize_choice(all_choices, post)
@@ -84,11 +82,11 @@ def finalize_choice(all_choices, post):
 
 def get_final_posts_area():
     final_post_areas = set()
-    actions = get_actions()
+    actions = settings.get_settings().action
     if "download" in actions:
         final_post_areas.update(get_download_area())
         final_post_areas.update(get_text_area())
-    if get_command() == "metadata":
+    if settings.get_settings().command == "metadata":
         final_post_areas.update(get_download_area())
     if "like" in actions or "unlike" in actions:
         final_post_areas.update(get_like_area())

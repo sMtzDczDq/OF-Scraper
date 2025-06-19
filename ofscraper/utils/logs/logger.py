@@ -1,10 +1,10 @@
 import logging
 
 import ofscraper.utils.logs.utils.level as log_helpers
-import ofscraper.utils.settings as settings
-from ofscraper.utils.logs.stdout import add_stdout_handler, start_flush_main_thread
-from ofscraper.utils.logs.other import add_other_handler
+from ofscraper.utils.logs.stdout import add_stdout_handler
+from ofscraper.utils.logs.other import add_other_handler,getstreamHandlers
 from ofscraper.utils.logs.classes.handlers.text import TextHandler
+import ofscraper.utils.dates as dates
 
 
 def add_widget(widget):
@@ -18,25 +18,32 @@ def add_widget(widget):
         )
     ]
 
-
-# logger for putting logs into queues
 def get_shared_logger(name=None):
     # create a logger
     logger = logging.getLogger(name or "shared")
-    logger_other = logging.getLogger(f"{name}_other" if name else "shared_other")
-    logger.handlers.clear()
+    clearHandlers(name)
     log_helpers.addtraceback()
     log_helpers.addtrace()
     add_stdout_handler(logger, clear=False)
     add_other_handler(logger, clear=False)
-    add_other_handler(logger_other, clear=False)
-    if settings.get_output_level() == "LOW":
-        add_stdout_handler(logger_other, clear=False)
-    # log all messages, debug and up
     logger.setLevel(1)
-    logger_other.setLevel(1)
     return logger
 
+def clearHandlers(name=None):
+    log=logging.getLogger(name or "shared")
+    for handler in log.handlers[:]:  # Iterate over a copy of the list
+        try:
+            log.removeHandler(handler)
+            handler.close()  # Release resources (critical for file handlers)
+        except Exception as e:
+            # Basic error handling (optional)
+            print(f"Error closing handler: {str(e)}")
 
-def start_threads():
-    start_flush_main_thread()
+def resetLogger():
+    dates.resetLogDateVManager()
+    get_shared_logger()
+
+def flushlogs():
+    for handler in getstreamHandlers():
+        handler.flush()
+

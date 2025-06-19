@@ -21,7 +21,6 @@ from urllib.parse import urlparse
 
 import arrow
 
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.auth.file as auth_file
 import ofscraper.utils.cache as cache
 import ofscraper.utils.constants as constants
@@ -60,7 +59,7 @@ def get_request_auth():
         arrow.now().float_timestamp - last_check.float_timestamp
     ) < constants.getattr("THIRTY_EXPIRY"):
         return curr_auth
-    dynamic = settings.get_dynamic_rules()
+    dynamic = settings.get_settings().dynamic_rules
     auth = None
     if constants.getattr("DYNAMIC_RULE") and dynamic in {"manual"}:
         auth = get_request_auth_dynamic_rule_manual()
@@ -90,7 +89,7 @@ def get_request_auth_dynamic_rule_manual():
 def get_request_auth_generic():
     logging.getLogger("shared").debug("getting new signature with generic")
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -107,7 +106,7 @@ def get_request_auth_deviint():
     logging.getLogger("shared").debug("getting new signature with deviint")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -124,7 +123,7 @@ def get_request_auth_datawhores():
     logging.getLogger("shared").debug("getting new signature with datawhores")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -141,7 +140,7 @@ def get_request_auth_xagler():
     logging.getLogger("shared").debug("getting new signature with xagler")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -158,7 +157,7 @@ def get_request_auth_rafa():
     logging.getLogger("shared").debug("getting new signature with rafa")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -175,7 +174,7 @@ def get_request_auth_riley():
     logging.getLogger("shared").debug("getting new signature with riley")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -192,7 +191,7 @@ def get_request_auth_digitalcriminals():
     logging.getLogger("shared").debug("getting new signature with digitalcriminals")
 
     with manager.Manager.get_session(
-        backend="httpx",
+       
         retries=constants.getattr("GIT_NUM_TRIES"),
         wait_min=constants.getattr("GIT_MIN_WAIT"),
         wait_max=constants.getattr("GIT_MAX_WAIT"),
@@ -228,7 +227,7 @@ def request_auth_helper(content):
 
 
 def make_headers():
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return make_anon_headers()
     else:
         return make_login_headers()
@@ -259,7 +258,7 @@ def make_login_headers():
 
 
 def add_cookies():
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return None
     auth = auth_file.read_auth()
     cookies = {}
@@ -278,7 +277,7 @@ def create_sign(link, headers):
     """
     credit: DC and hippothon
     """
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return create_anon_sign(link, headers)
     else:
         return create_login_sign(link, headers)

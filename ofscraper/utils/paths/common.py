@@ -2,13 +2,13 @@ import os
 import pathlib
 
 import ofscraper.const.constants as constants
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.config.data as data
 import ofscraper.utils.config.file as config_file
 import ofscraper.utils.constants as constants_attr
 import ofscraper.utils.dates as dates_manager
 import ofscraper.utils.profiles.data as profile_data
 import ofscraper.utils.profiles.tools as tools
+import ofscraper.utils.settings as settings
 
 
 def getcachepath():
@@ -53,7 +53,7 @@ def get_config_home():
 
 
 def get_config_path():
-    configPath = read_args.retriveArgs().config
+    configPath = settings.get_args().config
     defaultPath = pathlib.Path.home() / constants.configPath / constants.configFile
     ofscraperHome = pathlib.Path.home() / constants.configPath
 
@@ -76,17 +76,15 @@ def get_config_path():
 
 def getlogpath():
     path = None
-    if not data.get_appendlog():
+    if data.get_rotate_logs():
         path = (
-            get_config_home()
-            / "logging"
+            get_log_folder()
             / f'{data.get_main_profile()}_{dates_manager.getLogDate().get("day")}'
             / f'ofscraper_{data.get_main_profile()}_{dates_manager.getLogDate().get("now")}.log'
         )
     else:
         path = (
-            get_config_home()
-            / "logging"
+           get_log_folder()
             / f'ofscraper_{data.get_main_profile()}_{dates_manager.getLogDate().get("day")}.log'
         )
     path = pathlib.Path(path).resolve()
@@ -94,13 +92,18 @@ def getlogpath():
     return path
 
 
+def get_log_folder():
+    return (
+            get_config_home()
+            / "logging")
+
 def get_profile_path(name=None):
     if name:
         profile = get_config_home() / name
-    elif not read_args.retriveArgs().profile:
+    elif not settings.get_settings().profile:
         profile = get_config_home() / profile_data.get_current_config_profile()
     else:
-        profile = get_config_home() / read_args.retriveArgs().profile
+        profile = get_config_home() / settings.get_settings().profile
     return pathlib.Path(tools.profile_name_fixer(profile))
 
 

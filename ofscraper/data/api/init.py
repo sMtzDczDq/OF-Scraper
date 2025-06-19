@@ -14,9 +14,8 @@ r"""
 import logging
 import traceback
 
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.console as console
-
+import ofscraper.utils.settings as settings
 from . import me
 
 log = logging.getLogger("shared")
@@ -31,7 +30,7 @@ def print_sign_status():
 
 
 def getstatus():
-    if read_args.retriveArgs().anon:
+    if settings.get_settings().anon:
         return "UP"
     try:
         me.scrape_user()

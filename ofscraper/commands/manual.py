@@ -26,6 +26,7 @@ from ofscraper.utils.context.run_async import run
 from ofscraper.main.close.final.final import final
 from ofscraper.commands.scraper.actions.download.utils.text import textDownloader
 import ofscraper.main.manager as manager
+import ofscraper.utils.settings as settings
 
 
 def manual_download(urls=None):
@@ -74,7 +75,7 @@ def manual_download(urls=None):
                 batch_mediainsert(
                     value.get("media_list"), username=username, model_id=model_id
                 )
-                if read_args.retriveArgs().text_only:
+                if settings.get_settings().text_only:
                     result = textDownloader(posts, username)
                 else:
                     result, _ = download.download_process(
@@ -238,7 +239,7 @@ async def paid_failback(post_id, model_id, username):
     )
     post_id = str(post_id)
     async with manager.Manager.aget_ofsession(
-        backend="httpx",
+       
         sem_count=constants.getattr("API_REQ_CHECK_MAX"),
     ) as c:
         data = await paid.get_paid_posts(username, model_id, c=c) or []
