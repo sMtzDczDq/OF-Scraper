@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 from InquirerPy.separator import Separator
@@ -17,12 +17,12 @@ from prompt_toolkit.shortcuts import prompt as prompt
 
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 
 
 def profiles_prompt() -> int:
     name = "profile"
-    profile_prompt_choices = [*constants.getattr("profilesPromptChoices")]
+    profile_prompt_choices = [*of_env.getattr("profilesPromptChoices")]
     profile_prompt_choices.insert(5, Separator())
 
     questions = promptClasses.batchConverter(
@@ -36,7 +36,7 @@ def profiles_prompt() -> int:
         ]
     )
 
-    return constants.getattr("profilesPromptChoices").get(questions[name])
+    return of_env.getattr("profilesPromptChoices").get(questions[name])
 
 
 def edit_profiles_prompt(profiles) -> str:

@@ -3,12 +3,11 @@ import schedule
 import logging
 import time
 import traceback
-from functools import partial
 
 import ofscraper.utils.args.mutators.before as before_arg
 import ofscraper.utils.logs.logs as logs
 import ofscraper.utils.logs.logger as logger
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 from ofscraper.commands.scraper.utils.jobqueue import jobqueue
 import ofscraper.utils.settings as settings
 
@@ -36,9 +35,7 @@ def set_schedule(*functs):
 def schedule_helper(*functs):
     jobqueue.put(logger.resetLogger)
     jobqueue.put(logs.printStartValues)
-    jobqueue.put(
-        partial(manager.Manager.model_manager.getselected_usernames, rescan=True)
-    )
+    jobqueue.put(manager.Manager.model_manager.sync_models)
     jobqueue.put(before_arg.update_before)
     for funct in functs:
         jobqueue.put(funct)

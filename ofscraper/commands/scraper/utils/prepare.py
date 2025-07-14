@@ -3,9 +3,9 @@ import time
 import re
 
 import ofscraper.data.api.init as init
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 import ofscraper.utils.actions as actions
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.profiles.tools as profile_tools
 import ofscraper.utils.config.data as data
 
@@ -15,8 +15,8 @@ log = logging.getLogger("shared")
 
 def prepare(menu=False):
     session = manager.Manager.aget_ofsession(
-        sem_count=constants.getattr("API_REQ_SEM_MAX"),
-        total_timeout=constants.getattr("API_TIMEOUT_PER_TASK"),
+        sem_count=of_env.getattr("API_REQ_SEM_MAX"),
+        total_timeout=of_env.getattr("API_TIMEOUT_PER_TASK"),
     )
 
     unique_name_warning()
@@ -25,8 +25,8 @@ def prepare(menu=False):
     actions.select_areas()
     if menu is True:
         actions.set_scrape_paid()
-
-    userdata = manager.Manager.model_manager.getselected_usernames(rescan=False)
+    manager.Manager.stats_manager.clear_scraper_activity_stats()
+    userdata = manager.Manager.model_manager.prepare_scraper_activity()
     return userdata, session
 
 
@@ -47,6 +47,8 @@ def check_uniquename():
     elif re.search("custom", format):
         return True
     return False
+
+
 def unique_name_warning():
     if not check_uniquename():
         log.warning(
@@ -54,4 +56,4 @@ def unique_name_warning():
             https://of-scraper.gitbook.io/of-scraper/config-options/customizing-save-path#warning[/red]      \
             "
         )
-        time.sleep(constants.getattr("LOG_DISPLAY_TIMEOUT") * 3)
+        time.sleep(of_env.getattr("LOG_DISPLAY_TIMEOUT") * 3)

@@ -3,7 +3,7 @@ name = "ofscraper"
 # The version is now determined from your Git tags by Hatch
 dynamic = ["version"]
 description = "automatically scrape onlyfans"
-authors = [{name = "datawhores", email = "datawhores@riseup.net"}]
+authors = [{ name = "datawhores", email = "datawhores@riseup.net" }]
 readme = "README.md"
 requires-python = ">=3.11, <3.14"
 dependencies = [
@@ -49,14 +49,12 @@ dependencies = [
   "uvloop~=0.19.0; sys_platform == 'linux' or sys_platform == 'linux2'",
   "win32-setctime~=1.1.0",
   "xxhash~=3.4.1",
+  "pyyaml>=6.0.2",
+  "dotenv>=0.9.9",
 ]
-
 
 [project.optional-dependencies]
-dev = [
-  "autopep8~=2.0.2",
-  "pyinstaller"
-]
+dev = ["autopep8~=2.0.2", "pyinstaller"]
 test = [
   "pytest~=7.3.1",
   "coverage~=7.4.3",
@@ -65,62 +63,31 @@ test = [
   "random-emoji~=1.0.15",
   "pytest-mock~=3.12.0",
 ]
-docs = [
-  "sphinx-argparse~=0.5.2",
-]
-ffmpeg = [
-    "pyffmpeg==2.4.2.20",
-]
-
+docs = ["sphinx-argparse~=0.5.2"]
+ffmpeg = ["pyffmpeg==2.4.2.20"]
 
 [project.scripts]
 ofscraper = "ofscraper.__main__:main"
 
-
 [project.urls]
 "Homepage" = "https://github.com/datawhores/OF-Scraper"
 
-
 # --- Build System & Tool Configuration ---
 
-[build-system]
-# Use the standard, built-in hatch-vcs for versioning
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
-
+# This section tells hatchling how to build the wheel.
 [tool.hatch.build.targets.wheel]
 packages = ["ofscraper"]
 
-# Part 2: This tells Hatch to also include everything else.
-# The "/" glob means "the project root". This ensures all your
-# other files (README.md, config files, etc.) are included.
-include = ["ofscraper"]
+[build-system]
+requires = ["hatchling", "version-pioneer"]
+build-backend = "hatchling.build"
 
 [tool.hatch.version]
-source = "vcs"
+source = "version-pioneer"
 
-# Properly escaped regex pattern
-tag-pattern = "^(?:v)?(?P<version>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?(?:\\.[a-zA-Z0-9]+)?)$"
-
-# Add fallback version
-fallback_version = "0.0.0"
-
-# Simplified patterns
-dev-pattern = "dev{distance}"
-local-pattern = "+{node}"
-
-# setuptools-scm configuration
-[tool.setuptools_scm]
-git_describe_command = [
-    "git", 
-    "describe", 
-    "--dirty", 
-    "--tags", 
-    "--long", 
-    "--match", 
-    "[0-9]*.[0-9]*"
-]
-
+[tool.version-pioneer]
+# This tells the plugin to create a _version.py file inside your ofscraper package.
+versionscript = "plugins.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

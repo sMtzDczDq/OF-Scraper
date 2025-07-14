@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 from InquirerPy.base import Choice
@@ -18,26 +18,25 @@ import ofscraper.prompts.prompt_strings as prompt_strings
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
 import ofscraper.utils.args.accessors.areas as areas
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.settings as settings
 
 
 def areas_prompt() -> list:
-    args = read_args.retriveArgs()
+    args = settings.get_args()
     name = "value"
     message = None
     print(args.command)
-    if "like" in args.action and len(args.like_area) == 0:
+    if "like" in args.actions and len(args.like_area) == 0:
         message = "Which area(s) would you do you want to download and like"
-    elif "unlike" in args.action and len(args.like_area) == 0:
+    elif "unlike" in args.actions and len(args.like_area) == 0:
         message = "Which area(s) would you do you want to download and unlike"
-    elif "download" in args.action and settings.get_settings().command == "OF-Scraper":
+    elif "download" in args.actions and settings.get_settings().command == "OF-Scraper":
         message = "Which area(s) would you do you want to download"
     more_instruction = (
         """Hint: Since you have Like or Unlike set
     You must select one or more of Timeline,Pinned,Archived, or Label
 """
-        if ("like" or "unlike") in args.action and len(args.like_area) == 0
+        if ("like" or "unlike") in args.actions and len(args.like_area) == 0
         else ""
     )
     answers = promptClasses.batchConverter(

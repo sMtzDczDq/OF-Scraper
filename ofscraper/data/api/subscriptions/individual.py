@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import asyncio
@@ -16,8 +16,8 @@ import logging
 import traceback
 
 import ofscraper.data.api.profile as profile
-import ofscraper.main.manager as manager
-import ofscraper.utils.constants as constants
+import ofscraper.managers.manager as manager
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.live.updater as progress_utils
 from ofscraper.utils.context.run_async import run
 import ofscraper.utils.settings as settings
@@ -30,17 +30,17 @@ async def get_subscription(accounts=None):
     accounts = accounts or settings.get_settings().usernames
     if not isinstance(accounts, list) and not isinstance(accounts, set):
         accounts = set([accounts])
-    task1 = progress_utils.add_userlist_task(
+    task1 = progress_utils.userlist.add_overall_task(
         f"Getting the following accounts => {accounts} (this may take awhile)..."
     )
-    async with manager.Manager.aget_ofsession(
-        sem_count=constants.getattr("SUBSCRIPTION_SEMS"),
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         out = await get_subscription_helper(c, accounts)
-    progress_utils.remove_userlist_task(task1)
+    progress_utils.userlist.remove_overall_task(task1)
     outdict = {}
     for ele in filter(
-        lambda x: x["username"] != constants.getattr("DELETED_MODEL_PLACEHOLDER"),
+        lambda x: x["username"] != of_env.getattr("DELETED_MODEL_PLACEHOLDER"),
         out,
     ):
         outdict[ele["id"]] = ele

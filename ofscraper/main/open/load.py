@@ -4,26 +4,23 @@ import platform
 import traceback
 
 import ofscraper.main.open.run as run
-import ofscraper.utils.args.accessors.read as read_args
-import ofscraper.utils.checkers as checkers
 import ofscraper.utils.config.config as config_
 import ofscraper.utils.dates as dates
-import ofscraper.utils.logs.globals as log_globals
 import ofscraper.utils.logs.logger as logger
 import ofscraper.utils.logs.logs as logs
 import ofscraper.utils.paths.manage as paths_manage
 import ofscraper.utils.system.system as system
+import ofscraper.utils.settings as settings
 
 
 def main():
     try:
         systemSet()
-        args_loader()
+        settings_loader()
         setdate()
         readConfig()
         setLogger()
         make_folder()
-        check()
         run.main()
     except Exception as E:
         print(E)
@@ -36,8 +33,8 @@ def main():
             print(traceback.format_exc())
 
 
-def args_loader():
-    read_args.retriveArgs()
+def settings_loader():
+    settings.get_settings()
 
 
 def setdate():
@@ -45,10 +42,10 @@ def setdate():
 
 
 def setLogger():
-    log_globals.init_values()
     logger.get_shared_logger()
     logs.discord_warning()
     paths_manage.cleanup_logs()
+
 
 def systemSet():
     system.setName()
@@ -63,7 +60,3 @@ def readConfig():
 
 def make_folder():
     paths_manage.make_folders()
-
-
-def check():
-    checkers.check_config_key_mode()

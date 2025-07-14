@@ -1,30 +1,29 @@
+# ofscraper/classes/of/media.py
+
 import asyncio
 import logging
 import re
-
-# supress warnings
 import warnings
+from typing import Union
+from pathlib import Path
 
 import arrow
+from async_property import async_cached_property
 from bs4 import MarkupResemblesLocatorWarning
 from mpegdash.parser import MPEGDASHParser
-from async_property import async_cached_property
 
 import ofscraper.classes.of.base as base
+import ofscraper.managers.manager as manager
 import ofscraper.utils.args.accessors.quality as quality
 import ofscraper.utils.config.data as data
-import ofscraper.utils.constants as constants
 import ofscraper.utils.dates as dates
-import ofscraper.utils.logs.utils.level as log_helpers
-import ofscraper.main.manager as manager
-
+import ofscraper.utils.of_env.of_env as of_env
+import ofscraper.utils.logs.utils.sensitive as sensitive
 
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-
 log = logging.getLogger("shared")
-
-semaphore = asyncio.BoundedSemaphore(constants.getattr("MPD_MAX_SEMS"))
+semaphore = asyncio.BoundedSemaphore(of_env.getattr("MPD_MAX_SEMS"))
 
 
 class Media(base.base):
@@ -40,8 +39,95 @@ class Media(base.base):
         self._lock = asyncio.Lock()
         self._cached_mpd = None
 
+        self.download_attempted = False
+        self.download_succeeded = (
+            None  # Using tri-state: None (not attempted), True, False
+        )
+        self.metadata_attempted = False
+        self.metadata_succeeded = None
+
     def __eq__(self, other):
-        return self.postid == other.postid
+        if not isinstance(other, Media):
+            return NotImplemented
+        return self.id == other.id
+
+    def mark_download_succeeded(self):
+        """Sets the flags to represent a successful download."""
+        self.download_attempted = True
+        self.download_succeeded = True
+        self.update_download_status()
+
+    def mark_download_failed(self):
+        """Sets the flags to represent a failed download."""
+        self.download_attempted = True
+        self.download_succeeded = False
+        self.update_download_status()
+
+    def mark_download_skipped(self):
+        """Sets the flags to represent a skipped download."""
+        self.download_attempted = False
+        self.download_succeeded = None
+
+    def update_download_status(self):
+        """
+        Updates the download status string in the internal media dictionary
+        based on the two download flags.
+        """
+        if self.download_attempted and self.download_succeeded:
+            self.media["download_status"] = "succeeded"
+        elif self.download_attempted and not self.download_succeeded:
+            self.media["download_status"] = "failed"
+        else:  # Not attempted
+            self.media["download_status"] = "skipped"
+
+    def add_filepath(self, path: Union[str | Path]):
+        path = str(path)
+        self.media["filepath"] = path
+
+    def add_size(self, size: Union[int | float]):
+        self.media["size"] = float(size)
+
+    def mark_metadata_changed(self):
+        """Marks the metadata as successfully updated WITH changes."""
+        self.metadata_attempted = True
+        self.metadata_succeeded = True
+        self.update_metadata_status()
+
+    def mark_metadata_unchanged(self):
+        """Marks the metadata as successfully checked with NO changes."""
+        self.metadata_attempted = True
+        self.metadata_succeeded = None  # Using None to signify "unchanged"
+        self.update_metadata_status()
+
+    def mark_metadata_failed(self):
+        """Marks the metadata update as failed."""
+        self.metadata_attempted = True
+        self.metadata_succeeded = False
+        self.update_metadata_status()
+
+    def update_metadata_status(self):
+        """
+        Updates the metadata status string in the internal media dictionary
+        based on the three metadata flags.
+        """
+        if not self.metadata_attempted:
+            self.media["metadata_status"] = "skipped"
+        elif self.metadata_succeeded is False:
+            self.media["metadata_status"] = "failed"
+        elif self.metadata_succeeded:
+            self.media["metadata_status"] = "changed"
+        else:  # Succeeded but not changed
+            self.media["metadata_status"] = "unchanged"
+
+    # only use if content type can't be found from request
+    @property
+    def content_type(self):
+        if self.mediatype.lower() == "videos":
+            return "mp4"
+        elif self.mediatype.lower() == "images":
+            return "jpg"
+        elif self.mediatype.lower() == "audios":
+            return "mp3"
 
     @property
     def expires(self):
@@ -64,14 +150,15 @@ class Media(base.base):
 
     @property
     def mediatype(self):
-        if self._media["type"] == "photo":
+        media_type = self._media["type"]
+        if media_type == "photo":
             return "images"
-        elif self._media["type"] == "gif":
+        elif media_type == "gif":
             return "videos"
-        elif self._media["type"] == "forced_skipped":
+        elif media_type == "forced_skipped":
             return "forced_skipped"
         else:
-            return f"{self._media['type']}s".lower()
+            return f"{media_type}s".lower()
 
     @property
     def duration(self):
@@ -93,7 +180,7 @@ class Media(base.base):
             return None
         elif self._final_url:
             return self._final_url
-        elif self.responsetype == "stories" or self.responsetype == "highlights":
+        elif self.responsetype in {"stories", "highlights"}:
             self._final_url = self.files_source.get("full")
         elif self.responsetype == "profile":
             self._final_url = self._media.get("url")
@@ -102,14 +189,15 @@ class Media(base.base):
         return self._final_url
 
     def _url_quality_picker(self):
-        quality = self.normal_quality_helper()
+        quality_val = self.normal_quality_helper()
         out = None
-        if quality != "source":
-            out = self._media.get("videoSources", {}).get(quality)
-        elif out is None:
+        if quality_val != "source":
+            out = self._media.get("videoSources", {}).get(quality_val)
+
+        if out is None:
             out = self.files_source.get("full")
 
-        elif out is None:
+        if out is None:
             out = self.media_source.get("source")
         return out
 
@@ -121,25 +209,24 @@ class Media(base.base):
     def id(self):
         return self._media["id"]
 
-    # ID for use in dynamic names
     @property
     def file_postid(self):
-        return self._post._post["id"]
+        return self._post.id
 
     @property
     def canview(self):
-        # profiles are always viewable
         if self.responsetype.lower() == "profile":
             return True
         return (
-            self._media.get("canView") if (self.url or self.mpd) is not None else False
+            self._media.get("canView", False)
+            if (self.url or self.mpd) is not None
+            else False
         )
 
     @property
     def label(self):
         return self._post.label
 
-    # used for placeholder
     @property
     def label_string(self):
         return self._post.label_string
@@ -150,10 +237,7 @@ class Media(base.base):
 
     @property
     def modified_responsetype(self):
-        return (
-            self._post.modified_response_helper(mediatype=self.mediatype)
-            or self._post.modified_responsetype
-        )
+        return self._post.modified_responsetype
 
     @property
     def responsetype(self):
@@ -167,7 +251,6 @@ class Media(base.base):
     def postdate(self):
         return self._post.date
 
-    # modified verison of post date
     @property
     def formatted_postdate(self):
         return self._post.formatted_date
@@ -178,21 +261,15 @@ class Media(base.base):
             self._media.get("createdAt") or self._media.get("postedAt") or self.postdate
         )
 
-    # modified verison of media date
     @property
     def formatted_date(self):
-        if self._media.get("createdAt") or self._media.get("postedAt"):
-            return arrow.get(
-                self._media.get("createdAt") or self._media.get("postedAt")
-            ).format("YYYY-MM-DD hh:mm:ss")
+        date_val = self._media.get("createdAt") or self._media.get("postedAt")
+        if date_val:
+            return arrow.get(date_val).format("YYYY-MM-DD hh:mm:ss")
         return None
 
     @property
-    def id(self):
-        return self._media.get("id")
-
-    @property
-    def postid(self):
+    def post_id(self):
         return self._post.id
 
     @property
@@ -203,7 +280,7 @@ class Media(base.base):
     def mpd(self):
         if self._mpd:
             return self._mpd
-        elif self.protected is False:
+        if self.protected is False:
             return None
         return (
             self._media.get("files", {}).get("drm", {}).get("manifest", {}).get("dash")
@@ -213,7 +290,7 @@ class Media(base.base):
     def hls(self):
         if self._hls:
             return self._hls
-        elif self.protected is False:
+        if self.protected is False:
             return None
         return (
             self._media.get("files", {}).get("drm", {}).get("manifest", {}).get("hls")
@@ -297,6 +374,8 @@ class Media(base.base):
 
     @property
     def hls_base(self):
+        if not self.hls:
+            return None
         return re.sub(r"[a-z0-9]+.m3u8$", "", self.hls)
 
     @property
@@ -307,69 +386,56 @@ class Media(base.base):
     @property
     def file_text(self):
         text = self.get_text()
-        text = self.file_cleanup(text, mediatype=self.mediatype)
+        text = self.file_cleanup(text)
         text = self.text_trunicate(text)
         if not text:
-            return self.id
+            return str(self.id)
         return text
 
     @property
     def count(self):
         return self._count + 1
 
-    # og filename
     @property
     def filename(self):
         if not self.url and not self.mpd:
             return None
-        elif not self.responsetype == "Profile":
-            return re.sub(
-                "\.mpd$",
-                "",
-                (self.url or self.mpd)
-                .split(".")[-2]
-                .split("/")[-1]
-                .strip("/,.;!_-@#$%^&*()+\\ "),
-            )
-        else:
-            filename = re.sub(
-                "\.mpd$",
-                "",
-                (self.url or self.mpd)
-                .split(".")[-2]
-                .split("/")[-1]
-                .strip("/,.;!_-@#$%^&*()+\\ "),
-            )
-            return f"{filename}_{arrow.get(self.date).format(data.get_date(mediatype=self.mediatype))}"
+
+        base_url = self.url or self.mpd
+        if not base_url:
+            return None
+
+        filename_part = (
+            base_url.split(".")[-2].split("/")[-1].strip("/,.;!_-@#$%^&*()+\\ ")
+        )
+        filename = re.sub(r"\.mpd$", "", filename_part)
+
+        if self.responsetype.lower() == "profile":
+            date_str = arrow.get(self.date).format()
+            return f"{filename}_{date_str}"
+        return filename
 
     @async_cached_property
     async def final_filename(self):
-        # Assuming usage within the same class or instance
-        final_filename = await self._get_final_filename_async()
-        # Block and wait for the asynchronous operation to complete
-        return final_filename
+        return await self._get_final_filename_async()
 
     @property
     def no_quality_final_filename(self):
         filename = self.filename or str(self.id)
         if self.mediatype == "videos":
-            filename = re.sub("_[a-z]+", "", filename)
-        # cleanup
+            filename = re.sub("_[a-z0-9]+$", "", filename)
+
         try:
             filename = self.file_cleanup(filename)
-            filename = re.sub(
-                " ", data.get_spacereplacer(mediatype=self.mediatype), filename
-            )
-        except Exception as E:
-            print(E)
+            filename = re.sub(" ", data.get_spacereplacer(), filename)
+        except Exception as e:
+            log.error(f"Error cleaning filename: {e}")
+
         return filename
 
     @property
     def preview(self):
-        if self.post.preview:
-            return 1
-        else:
-            return 0
+        return 1 if self.post.preview else 0
 
     @property
     def linked(self):
@@ -387,7 +453,7 @@ class Media(base.base):
     async def parse_mpd(self):
         if not self.mpd:
             return
-        elif self._cached_mpd:
+        if self._cached_mpd:
             return self._cached_mpd
         params = {
             "Policy": self.policy,
@@ -395,15 +461,17 @@ class Media(base.base):
             "Signature": self.signature,
         }
         async with self._lock:
+            if self._cached_mpd:  # double check lock
+                return self._cached_mpd
             async with manager.Manager.aget_ofsession(
-                retries=constants.getattr("MPD_NUM_TRIES"),
-                wait_min=constants.getattr("OF_MIN_WAIT_API"),
-                wait_max=constants.getattr("OF_MAX_WAIT_API"),
-                connect_timeout=constants.getattr("MPD_CONNECT_TIMEOUT"),
-                total_timeout=constants.getattr("MPD_TOTAL_TIMEOUT"),
-                read_timeout=constants.getattr("MPD_READ_TIMEOUT"),
-                pool_timeout=constants.getattr("MPD_POOL_CONNECT_TIMEOUT"),
-                semaphore=semaphore,
+                retries=of_env.getattr("MPD_NUM_TRIES"),
+                wait_min=of_env.getattr("OF_MIN_WAIT_API"),
+                wait_max=of_env.getattr("OF_MAX_WAIT_API"),
+                connect_timeout=of_env.getattr("MPD_CONNECT_TIMEOUT"),
+                total_timeout=of_env.getattr("MPD_TOTAL_TIMEOUT"),
+                read_timeout=of_env.getattr("MPD_READ_TIMEOUT"),
+                pool_timeout=of_env.getattr("MPD_POOL_CONNECT_TIMEOUT"),
+                sem=semaphore,
                 log=self._log,
             ) as c:
                 async with c.requests_async(url=self.mpd, params=params) as r:
@@ -414,26 +482,24 @@ class Media(base.base):
     async def mpd_video(self):
         if not self.mpd:
             return
-        video = await self.mpd_video_helper()
-        return video
+        return await self.mpd_video_helper()
 
     @async_cached_property
     async def mpd_audio(self):
         if not self.mpd:
             return
-        audio = await self.mpd_audio_helper()
-        return audio
+        return await self.mpd_audio_helper()
 
     @property
     def license(self):
         if not self.mpd:
             return None
-        responsetype = self.post.post["responseType"]
+        responsetype = self.post.responsetype
         if responsetype in ["timeline", "archived", "pinned", "posts", "streams"]:
             responsetype = "post"
-        return constants.getattr("LICENCE_URL").format(
-            self.id, responsetype, self.postid
-        )
+        else:
+            responsetype = "message"
+        return of_env.getattr("LICENCE_URL").format(self.id, responsetype, self.post_id)
 
     @property
     def mass(self):
@@ -459,17 +525,15 @@ class Media(base.base):
 
     @async_cached_property
     async def selected_quality_placeholder(self):
-        return await self.selected_quality or constants.getattr(
-            "QUALITY_UNKNOWN_DEFAULT"
-        )
+        return await self.selected_quality or of_env.getattr("QUALITY_UNKNOWN_DEFAULT")
 
     @property
     def protected(self):
         if self.mediatype not in {"videos", "texts"}:
             return False
-        elif bool(self.media_source.get("source")):
+        if self.media_source.get("source"):
             return False
-        elif bool(self.files_source.get("full")):
+        if self.files_source.get("full"):
             return False
         return True
 
@@ -489,25 +553,37 @@ class Media(base.base):
     def log(self):
         return self._log
 
+    @property
+    def size(self):
+        """
+        Returns the size of the media.
+
+        Raises:
+            AttributeError: If the 'size' key has not been set yet.
+        """
+        if "size" not in self.media:
+            raise AttributeError(
+                "Size is not available yet. It must be set after the request is made."
+            )
+        return self.media["size"]
+
     @log.setter
     def log(self, val):
         self._log = val
 
     def get_text(self):
-        if self.responsetype != "Profile":
-            text = (
-                self._post.file_sanitized_text
-                or self.filename
-                or arrow.get(self.date).format(data.get_date(mediatype=self.mediatype))
-            )
-        elif self.responsetype == "Profile":
-            text = f"{arrow.get(self.date).format(data.get_date(mediatype=self.mediatype))} {self.text or self.filename}"
+        if self.responsetype.lower() != "profile":
+            date_str = arrow.get(self.date).format(data.get_date())
+            text = self._post.file_sanitized_text or self.filename or date_str
+        else:
+            date_str = arrow.get(self.date).format()
+            text = f"{date_str} {self.text or self.filename}"
         return text
 
-    async def mpd_video_helper(self, mpd=None):
-        mpd = mpd or await self.parse_mpd
+    async def mpd_video_helper(self, mpd_obj=None):
+        mpd = mpd_obj or await self.parse_mpd
         if not mpd:
-            return
+            return None
         allowed = quality.get_allowed_qualities()
         for period in mpd.periods:
             for adapt_set in filter(
@@ -519,34 +595,38 @@ class Media(base.base):
                         kId = prot.pssh[0].pssh
                         break
 
-                selected_quality = None
-                for ele in ["240", "720"]:
-                    if ele not in allowed:
-                        continue
-                    selected_quality = selected_quality or next(
-                        filter(
-                            lambda x: x.height == int(ele), adapt_set.representations
-                        ),
-                        None,
-                    )
-                selected_quality = selected_quality or max(
-                    adapt_set.representations, key=lambda x: x.height
+                representations = sorted(
+                    adapt_set.representations, key=lambda x: x.height, reverse=True
                 )
-                for repr in adapt_set.representations:
-                    if repr.height == selected_quality.height:
-                        origname = f"{repr.base_urls[0].base_url_value}"
-                        return {
-                            "origname": origname,
-                            "pssh": kId,
-                            "type": "video",
-                            "name": f"tempvid_{self.id}_{self.postid}",
-                            "ext": "mp4",
-                        }
+                selected_repr = None
+                for quality_val in allowed:
+                    if quality_val.lower() == "source":
+                        selected_repr = representations[0]
+                        break
+                    for r in representations:
+                        if str(r.height) == quality_val:
+                            selected_repr = r
+                            break
+                    if selected_repr:
+                        break
 
-    async def mpd_audio_helper(self, mpd=None):
-        mpd = mpd or await self.parse_mpd
+                selected_repr = (
+                    selected_repr or representations[0]
+                )  # Fallback to highest
+
+                origname = f"{selected_repr.base_urls[0].base_url_value}"
+                return {
+                    "origname": origname,
+                    "pssh": kId,
+                    "type": "video",
+                    "name": f"tempvid_{self.id}_{self.post_id}",
+                    "ext": "mp4",
+                }
+
+    async def mpd_audio_helper(self, mpd_obj=None):
+        mpd = mpd_obj or await self.parse_mpd
         if not mpd:
-            return
+            return None
         for period in mpd.periods:
             for adapt_set in filter(
                 lambda x: x.mime_type == "audio/mp4", period.adaptation_sets
@@ -555,51 +635,55 @@ class Media(base.base):
                 for prot in adapt_set.content_protections:
                     if prot.value is None:
                         kId = prot.pssh[0].pssh
-                        log_helpers.updateSenstiveDict(kId, "pssh_code")
+                        sensitive.add_sensitive_pattern(kId, "pssh_code")
                         break
-                for repr in adapt_set.representations:
-                    origname = f"{repr.base_urls[0].base_url_value}"
-                    return {
-                        "origname": origname,
-                        "pssh": kId,
-                        "type": "audio",
-                        "name": f"tempaudio_{self.id}_{self.postid}",
-                        "ext": "mp4",
-                    }
+
+                # Typically there's only one audio representation
+                repr = adapt_set.representations[0]
+                origname = f"{repr.base_urls[0].base_url_value}"
+                return {
+                    "origname": origname,
+                    "pssh": kId,
+                    "type": "audio",
+                    "name": f"tempaudio_{self.id}_{self.post_id}",
+                    "ext": "mp4",
+                }
 
     def normal_quality_helper(self):
-        allowed = quality.get_allowed_qualities()
         if self.mediatype != "videos":
             return "source"
-        for ele in ["240", "720"]:
-            if ele not in allowed:
-                continue
-            elif self._media.get("videoSources", {}).get(ele):
-                return ele
-        return "source"
 
-    async def alt_quality_helper(self, mpd=None):
-        mpd = mpd or await self.parse_mpd
-
-        if not mpd:
-            return
         allowed = quality.get_allowed_qualities()
-        selected = None
+        available = self._media.get("videoSources", {})
 
+        # Check from highest to lowest preferred quality
+        for qual in allowed:
+            if qual.lower() == "source":  # "source" is an alias for the best available
+                return "source"
+            if available.get(qual):
+                return qual
+        return "source"  # Fallback
+
+    async def alt_quality_helper(self, mpd_obj=None):
+        mpd = mpd_obj or await self.parse_mpd
+        if not mpd:
+            return None
+
+        allowed = quality.get_allowed_qualities()
         for period in mpd.periods:
             for adapt_set in filter(
                 lambda x: x.mime_type == "video/mp4", period.adaptation_sets
             ):
-                for ele in ["240", "720"]:
-                    if ele not in allowed:
-                        continue
-                    selected = selected or next(
-                        filter(
-                            lambda x: x.height == int(ele), adapt_set.representations
-                        ),
-                        None,
-                    )
-                return str(selected.height) if selected else "source"
+                representations = sorted(
+                    adapt_set.representations, key=lambda x: x.height, reverse=True
+                )
+                for qual in allowed:
+                    if qual.lower() == "source":
+                        return str(representations[0].height)
+                    for r in representations:
+                        if str(r.height) == qual:
+                            return str(r.height)
+                return str(representations[0].height)  # Fallback to best
 
     async def _get_final_filename_async(self):
         filename = self.filename or str(self.id)
@@ -607,15 +691,11 @@ class Media(base.base):
             filename = re.sub("_[a-z0-9]+$", "", filename)
             quality_placeholder = await self.selected_quality_placeholder
             filename = f"{filename}_{quality_placeholder}"
-        # cleanup (unchanged)
+
         try:
             filename = self.file_cleanup(filename)
-            filename = re.sub(
-                " ", data.get_spacereplacer(mediatype=self.mediatype), filename
-            )
-
-        except Exception as E:
-            print(E)
-            # Handle exception for robustness (optional)
+            filename = re.sub(" ", data.get_spacereplacer(), filename)
+        except Exception as e:
+            log.error(f"Error creating final filename: {e}")
 
         return filename

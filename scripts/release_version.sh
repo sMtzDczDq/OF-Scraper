@@ -96,10 +96,10 @@ fi
 # --- Determine if it's a stable or dev release based on PACKAGE_VERSION ---
 # Stable: pure semantic versioning (e.g., 1.2.3)
 # Dev: contains any letters (e.g., alpha, beta, rc, dev)
-if [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    IS_STABLE_RELEASE="true"
-elif [[ "$PACKAGE_VERSION" =~ [a-zA-Z] ]]; then
+if [[ "$PACKAGE_VERSION" =~ [a-zA-Z] ]]; then
     IS_DEV_RELEASE="true"
+else
+    IS_STABLE_RELEASE="true"
 fi
 
 # Debug prints for console (for local execution and debugging)
@@ -117,7 +117,6 @@ if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_ENV" ] && [ -n "$GITHUB_OUTPU
     echo "--- GitHub Actions environment detected. Setting outputs and env vars. ---"
 
     # For subsequent steps in the same job (e.g., for build arguments)
-    echo "SETUPTOOLS_SCM_PRETEND_VERSION=${PACKAGE_VERSION}" >> "$GITHUB_ENV"
     echo "HATCH_VCS_PRETEND_VERSION=${PACKAGE_VERSION}" >> "$GITHUB_ENV"
 
     # For other jobs that depend on this one
@@ -127,9 +126,4 @@ if [ "$GITHUB_ACTIONS" = "true" ] && [ -n "$GITHUB_ENV" ] && [ -n "$GITHUB_OUTPU
     echo "is_stable_release=${IS_STABLE_RELEASE}" >> "$GITHUB_OUTPUT"
     echo "is_dev_release=${IS_DEV_RELEASE}" >> "$GITHUB_OUTPUT"
     echo "commit_timestamp=${CURRENT_COMMIT_TIMESTAMP}" >> "$GITHUB_OUTPUT"
-else
-    # Local Use: Export variables. This only works if the script is run with `source`.
-    export SETUPTOOLS_SCM_PRETEND_VERSION=${PACKAGE_VERSION}
-    export HATCH_VCS_PRETEND_VERSION=${PACKAGE_VERSION}
-    echo "✅ Local environment variables exported. To use them, run this script with 'source'."
 fi

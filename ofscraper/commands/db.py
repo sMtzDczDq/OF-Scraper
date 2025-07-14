@@ -11,7 +11,6 @@ from humanfriendly import format_size
 
 import ofscraper.utils.console as console
 
-import ofscraper.utils.args.accessors.read as read_args
 from ofscraper.db.operations_.media import (
     get_timeline_media,
     get_archived_media,
@@ -24,9 +23,9 @@ from ofscraper.db.operations_.media import (
 )
 from ofscraper.utils.logs.other import add_other_handler
 from ofscraper.utils.context.run_async import run as run_async
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.settings as settings
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 import ofscraper.utils.actions as actions
 
 
@@ -54,7 +53,7 @@ class DBManager:
 
     @run_async
     async def get_all_media(self):
-        args = read_args.retriveArgs()
+        args = settings.get_args()
         timeline = []
         archived = []
         messages = []
@@ -108,7 +107,7 @@ class DBManager:
 
     def filter_media(self):
         self.log.info(f"filtering media for {self.username}_{self.model_id}")
-        args = read_args.retriveArgs()
+        args = settings.get_args()
         medias = self.media
         # downloaded
         if args.downloaded:
@@ -257,10 +256,10 @@ class DBManager:
         for i, dictionary in enumerate(dictionaries):
             dictionary = OrderedDict(dictionary)
             dictionary["posted_at"] = arrow.get(dictionary["posted_at"]).format(
-                constants.getattr("API_DATE_FORMAT")
+                of_env.getattr("API_DATE_FORMAT")
             )
             dictionary["created_at"] = arrow.get(dictionary["created_at"]).format(
-                constants.getattr("API_DATE_FORMAT")
+                of_env.getattr("API_DATE_FORMAT")
             )
             size = dictionary.pop("size", None)
             dictionary["size"] = size
@@ -375,6 +374,7 @@ class DBManager:
 
 def db():
     actions.select_areas()
-    for model in manager.Manager.model_manager.getselected_usernames(rescan=False):
+    manager.Manager.model_manager.sync_models(all_main_models=True)
+    for model in manager.Manager.model_manager.all_subs:
         db_manager = DBManager(model.name, model.id)
         db_manager.print_media()

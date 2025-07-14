@@ -4,7 +4,6 @@ import asyncio
 
 import ofscraper.utils.hash as hash
 from ofscraper.utils.context.run_async import run as run_async
-from ofscraper.main.close.final.final_user import post_user_script
 from ofscraper.commands.utils.strings import (
     download_activity_str,
 )
@@ -18,18 +17,16 @@ import ofscraper.utils.cache as cache
 import ofscraper.utils.context.exit as exit
 import ofscraper.utils.live.screens as progress_utils
 
-from ofscraper.classes.sessionmanager.download import download_session
-from ofscraper.commands.scraper.actions.utils.log import final_log, final_log_text
 
-from ofscraper.commands.scraper.actions.utils.paths.paths import setDirectoriesDate
+from ofscraper.commands.scraper.actions.utils.paths import setDirectoriesDate
 
 from ofscraper.commands.scraper.actions.utils.workers import get_max_workers
 from ofscraper.utils.context.run_async import run
 from ofscraper.commands.scraper.actions.download.run import consumer
 from ofscraper.commands.scraper.actions.download.utils.desc import desc
 from ofscraper.commands.scraper.actions.download.utils.text import textDownloader
-from ofscraper.utils.args.accessors.areas import get_download_area
 import ofscraper.utils.settings as settings
+import ofscraper.managers.manager as manager
 
 
 async def downloader(username=None, model_id=None, posts=None, media=None, **kwargs):
@@ -42,69 +39,51 @@ async def downloader(username=None, model_id=None, posts=None, media=None, **kwa
         modelusername=username,
         modelid=model_id,
     )
-
-    progress_updater.update_activity_task(description=download_str + path_str)
-    logging.getLogger("shared").warning(
-        download_activity_str.format(username=username)
-    )
-    progress_updater.update_activity_task(description="")
-    data, values = await download_process(username, model_id, media, posts=posts)
-    return data, values
-
-
-@run_async
-async def download_process(username, model_id, medialist=None, posts=None):
-    data, values = await process_dicts(username, model_id, medialist, posts)
-    post_user_script(username, medialist, posts=None)
-    return data, values
+    with progress_utils.TemporaryTaskState(progress_updater.activity, ["main"]):
+        progress_updater.activity.update_task(
+            description=download_str + path_str, visible=True
+        )
+        logging.getLogger("shared").warning(
+            download_activity_str.format(username=username)
+        )
+        values = await download_process(username, model_id, media, posts=posts)
+        return values
 
 
 @run_async
-async def download_model_deleted_process(
-    username, model_id, medialist=None, posts=None
-):
-    data, values = await process_dicts(username, model_id, medialist, posts)
-    return data, values
+async def download_process(username, model_id, medialist, posts):
+    values = await process_dicts(username, model_id, medialist, posts)
+    return values
 
 
 @run
 async def process_dicts(username, model_id, medialist, posts):
-    log_text_array = []
-    log_text_array.append(await textDownloader(posts, username=username))
+    # 2. Handle text download if enabled
+    if not isinstance(medialist, list):
+        medialist = [medialist]
+    if not isinstance(posts, list):
+        posts = [posts]
+    if settings.get_settings().text:
+        await textDownloader(posts, username=username)
+    if settings.get_settings().text_only:
+        return (0, 0, 0, 0, 0)
+    medialist_empty = len(medialist) == 0
+
+    if medialist_empty:
+        return (0, 0, 0, 0, 0)
+
+    # Continue to download process
     logging.getLogger("shared").info("Downloading in single thread mode")
     common_globals.mainProcessVariableInit()
-    if settings.get_settings().text_only:
-        return log_text_array, (0, 0, 0, 0, 0)
-    elif settings.get_settings().command in {
-        "manual",
-        "post_check",
-        "msg_check",
-        "story_check",
-        "paid_check",
-    }:
-        pass
-    elif settings.get_settings().scrape_paid:
-        pass
-    elif len(get_download_area()) == 0:
-        empty_log = final_log_text(username, 0, 0, 0, 0, 0, 0)
-        logging.getLogger("shared").error(empty_log)
-        log_text_array.append(empty_log)
-        return log_text_array, (0, 0, 0, 0, 0)
-
-    if len(medialist) == 0:
-        empty_log = final_log_text(username, 0, 0, 0, 0, 0, 0)
-        logging.getLogger("shared").error(empty_log)
-        log_text_array.append(empty_log)
-        return log_text_array, (0, 0, 0, 0, 0)
     task1 = None
-    with progress_utils.setup_download_progress_live():
+    with progress_utils.setup_live("download"):
         try:
 
             aws = []
-            async with download_session() as c:
+            async with manager.Manager.get_download_session() as c:
                 for ele in medialist:
                     aws.append((c, ele, model_id, username))
-                task1 = progress_updater.add_download_task(
+                task1 = progress_updater.download.add_overall_task(
                     desc.format(
                         p_count=0,
                         v_count=0,
@@ -136,10 +115,8 @@ async def process_dicts(username, model_id, medialist, posts):
             common_globals.thread.shutdown()
 
         setDirectoriesDate()
-        final_log(username, log=logging.getLogger("shared"))
-        progress_updater.remove_download_task(task1)
-        log_text_array.append(final_log_text(username))
-        return log_text_array, (
+        progress_updater.download.remove_overall_task(task1)
+        return (
             common_globals.video_count,
             common_globals.audio_count,
             common_globals.photo_count,

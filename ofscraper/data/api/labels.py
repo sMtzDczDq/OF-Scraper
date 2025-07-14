@@ -1,14 +1,14 @@
 r"""
-                                                            
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import asyncio
@@ -16,7 +16,7 @@ import logging
 import traceback
 
 import ofscraper.data.api.common.logs.strings as common_logs
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.live.updater as progress_utils
 from ofscraper.data.api.common.check import update_check
 from ofscraper.utils.context.run_async import run
@@ -70,7 +70,7 @@ async def process_tasks_labels(tasks):
 
     page_count = 0
 
-    page_task = progress_utils.add_api_task(
+    page_task = progress_utils.api.add_overall_task(
         f"Label Names Pages Progress: {page_count}", visible=True
     )
     seen = set()
@@ -81,7 +81,7 @@ async def process_tasks_labels(tasks):
                 result, new_tasks_batch = await task
                 new_tasks.extend(new_tasks_batch)
                 page_count = page_count + 1
-                progress_utils.update_api_task(
+                progress_utils.api.update_overall_task(
                     page_task,
                     description=f"Label Names Pages Progress: {page_count}",
                 )
@@ -101,7 +101,7 @@ async def process_tasks_labels(tasks):
                 log.traceback_(traceback.format_exc())
                 continue
         tasks = new_tasks
-    progress_utils.remove_api_task(page_task)
+    progress_utils.api.remove_overall_task(page_task)
     log.debug(
         f"{common_logs.FINAL_IDS.format('Labels Names')} {list(map(lambda x:x['id'],responseArray))}"
     )
@@ -115,13 +115,13 @@ async def scrape_labels(c, model_id, offset=0):
     labels = None
     new_tasks = []
 
-    url = constants.getattr("labelsEP").format(model_id, offset)
+    url = of_env.getattr("labelsEP").format(model_id, offset)
     task = None
     log.debug(f"trying to access label names with url:{url}  offset:{offset}")
 
     try:
 
-        task = progress_utils.add_api_job_task(
+        task = progress_utils.api.add_job_task(
             f"labels offset -> {offset}",
             visible=True,
         )
@@ -165,7 +165,7 @@ async def scrape_labels(c, model_id, offset=0):
         raise E
 
     finally:
-        progress_utils.remove_api_job_task(task)
+        progress_utils.api.remove_job_task(task)
 
 
 async def process_tasks_get_posts_for_labels(tasks, labels):
@@ -173,7 +173,7 @@ async def process_tasks_get_posts_for_labels(tasks, labels):
 
     page_count = 0
 
-    page_task = progress_utils.add_api_task(
+    page_task = progress_utils.api.add_overall_task(
         f"Labels Progress: {page_count}", visible=True
     )
 
@@ -183,7 +183,7 @@ async def process_tasks_get_posts_for_labels(tasks, labels):
             try:
                 label, posts, new_tasks = await task
                 page_count = page_count + 1
-                progress_utils.update_api_task(
+                progress_utils.api.update_overall_task(
                     page_task, description=f"Labels Progress: {page_count}"
                 )
                 new_posts = label_dedupe(responseDict[label["id"]]["seen"], posts)
@@ -224,18 +224,18 @@ async def process_tasks_get_posts_for_labels(tasks, labels):
         )
     )
     trace_log_raw(f"{API} content final", list(responseDict.values()), final_count=True)
-    progress_utils.remove_api_task(page_task)
+    progress_utils.api.remove_overall_task(page_task)
     return list(responseDict.values())
 
 
 async def scrape_posts_labels(c, label, model_id, offset=0):
     posts = None
     new_tasks = []
-    url = constants.getattr("labelledPostsEP").format(model_id, offset, label["id"])
+    url = of_env.getattr("labelledPostsEP").format(model_id, offset, label["id"])
 
     try:
 
-        task = progress_utils.add_api_job_task(
+        task = progress_utils.api.add_job_task(
             f": getting posts from label -> {label['name']}",
             visible=True,
         )
@@ -275,7 +275,7 @@ async def scrape_posts_labels(c, label, model_id, offset=0):
         raise E
 
     finally:
-        progress_utils.remove_api_job_task(task)
+        progress_utils.api.remove_job_task(task)
 
     return label, posts, new_tasks
 

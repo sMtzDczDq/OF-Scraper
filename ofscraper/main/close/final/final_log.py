@@ -1,11 +1,11 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
                                                                                       f
@@ -15,12 +15,12 @@ import logging
 import time
 import itertools
 
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 
 
 def final_log(data):
     log = logging.getLogger("shared")
-    if constants.getattr("SHOW_RESULTS_LOG"):
+    if of_env.getattr("SHOW_RESULTS_LOG"):
         # give time for last long to show
         time.sleep(2)
         log.warning("\n\n\n")

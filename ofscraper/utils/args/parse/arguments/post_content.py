@@ -266,7 +266,7 @@ like_toggle_force = click.option(
 label_option = click.option(
     "-lb",
     "--label",
-    help="Filter by label (use helpers.label_helper to process)",
+    help="Filter by label",
     default=[],
     required=False,
     callback=StringSplitNormalizeParse,
@@ -329,7 +329,7 @@ download_type_option = click.option(
     """,
     default=None,
     callback=set_download_type_flag,
-    is_flag=True # is_flag is still needed for the split flag to work
+    is_flag=True,  # is_flag is still needed for the split flag to work
 )
 
 

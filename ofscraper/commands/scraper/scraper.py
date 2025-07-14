@@ -2,12 +2,11 @@ import logging
 import traceback
 import threading
 import schedule
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.context.exit as exit
 import ofscraper.utils.live.screens as progress_utils
 from ofscraper.commands.utils.scrape_context import scrape_context_manager
 from ofscraper.utils.checkers import check_auth
-from ofscraper.main.close.final.final import final
+from ofscraper.main.close.final.final import final_action
 from ofscraper.data.posts.scrape_paid import scrape_paid_all
 from ofscraper.commands.scraper.actions.download.download import downloader
 import ofscraper.commands.scraper.actions.like.like as like_action
@@ -20,10 +19,10 @@ import ofscraper.utils.paths.paths as paths
 import ofscraper.utils.system.network as network
 from ofscraper.commands.scraper.utils.prepare import prepare
 import ofscraper.utils.console as console
-from ofscraper.commands.utils.command import commmandManager
+from ofscraper.commands.utils.command import CommandManager
 import ofscraper.utils.actions as actions
 import ofscraper.utils.checkers as checkers
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 from ofscraper.commands.scraper.utils.schedule import set_schedule
 import ofscraper.utils.config.data as data
 import ofscraper.utils.menu as menu
@@ -31,13 +30,20 @@ from ofscraper.commands.scraper.utils.jobqueue import jobqueue
 from ofscraper.__version__ import __version__
 import ofscraper.utils.settings as settings
 from ofscraper.utils.logs.logger import flushlogs
-
-
+from ofscraper.scripts.after_download_action_script import after_download_action_script
+from ofscraper.scripts.after_like_action_script import after_like_action_script
+from ofscraper.managers.postcollection import PostCollection
 
 log = logging.getLogger("shared")
 
+ACTION_SCRIPTS = {
+    "like": after_like_action_script,
+    "unlike": after_like_action_script,
+    "download": after_download_action_script,
+}
 
-class scraperManager(commmandManager):
+
+class scraperManager(CommandManager):
     def __init__(self):
         super().__init__()
 
@@ -45,44 +51,35 @@ class scraperManager(commmandManager):
     def runner(self, menu=False):
         check_auth()
         with scrape_context_manager():
-            normal_data = []
-            user_first_data = []
-            scrape_paid_data = []
-            userdata = []
+            with progress_utils.stop_live_screen(clear="all"):
+                with progress_utils.setup_live("main_activity"):
+                    if settings.get_settings().scrape_paid:
+                        scrape_paid_all()
 
-            with progress_utils.setup_activity_group_live(
-                setup=True, revert=False, stop=True
-            ):
-                if settings.get_settings().scrape_paid:
-                    scrape_paid_data = scrape_paid_all()
+                    if not self.run_action:
+                        pass
 
-                if not self.run_action:
-                    pass
+                    elif settings.get_settings().users_first:
+                        userdata, session = prepare(menu=menu)
+                        self._process_users_actions_user_first(userdata, session)
+                    else:
 
-                elif settings.get_settings().users_first:
-                    userdata, session = prepare(menu=menu)
-                    user_first_data = self._process_users_actions_user_first(
-                        userdata, session
-                    )
-                else:
-                    userdata, session = prepare()
-                    normal_data = self._process_users_actions_normal(userdata, session)
-            final(normal_data, scrape_paid_data, user_first_data)
+                        userdata, session = prepare(menu=menu)
+                        self._process_users_actions_normal(userdata, session)
+
+                final_action()
 
     @exit.exit_wrapper
     @run_async
     async def _process_users_actions_user_first(self, userdata, session):
-        data = await self._get_userfirst_data_function(self._get_users_data_user_first)(
-            userdata, session
-        )
-        progress_updater.update_activity_task(description="Performing Actions on Users")
-        progress_updater.update_user_activity(
-            description="Users with Actions completed", completed=0
+        data = await self._gather_user_first_data(
+            userdata, session, self._get_users_data_user_first
         )
         flushlogs()
-        return await self._get_userfirst_action_execution_function(
-            self._execute_user_action
-        )(data)
+        await self._execute_user_first_actions(data, self._execute_user_action)
+        progress_updater.activity.update_task(description="Finished Action Mode")
+
+
 
     async def _get_users_data_user_first(self, session, ele):
         return await self._process_ele_user_first_data_retriver(ele, session)
@@ -92,97 +89,116 @@ class scraperManager(commmandManager):
         username = ele.name
         avatar = ele.avatar
         await operations.table_init_create(model_id=model_id, username=username)
-        media, posts, like_posts = await post_media_process(ele, session)
+        postcollection = await post_media_process(ele, session)
         return {
             model_id: {
                 "username": username,
-                "posts": posts,
-                "media": media,
+                "postcollection": postcollection,
                 "avatar": avatar,
-                "like_posts": like_posts,
                 "ele": ele,
             }
         }
 
-    async def _execute_user_action(
-        self, posts=None, like_posts=None, ele=None, media=None
-    ):
-        actions = settings.get_settings().action
-        username = ele.name
-        model_id = ele.id
-        out = []
-        for action in actions:
-            if action == "download":
-                result, _ = await downloader(
-                    posts=posts,
-                    media=media,
-                    model_id=model_id,
-                    username=username,
-                )
-                out.append(result)
-            elif action == "like":
-                out.append(
-                    like_action.process_like(
-                        ele=ele,
-                        posts=like_posts,
-                        media=media,
-                        model_id=model_id,
-                        username=username,
+    async def _execute_user_action(self, ele, postcollection: PostCollection):
+        with progress_utils.setup_live("main_activity", clear=False):
+            progress_updater.activity.update_task(
+                description=f"Performing Actions on {ele.name}",
+                total=manager.Manager.model_manager.get_num_scrape_selected_models(),
+                visible=True,
+            )
+            actions = settings.get_settings().actions
+            username = ele.name
+            model_id = ele.id
+            media = postcollection.get_media_for_processing()
+            like_posts = postcollection.get_posts_to_like
+            posts = postcollection.get_posts_for_text_download()
+            for action in actions:
+                try:
+                    if action == "download":
+                        await downloader(
+                            posts=posts,
+                            media=media,
+                            model_id=model_id,
+                            username=username,
+                        )
+                        manager.Manager.stats_manager.update_and_print_stats(
+                            username, "download", media
+                        )
+                    elif action == "like":
+                        like_action.process_like(
+                            ele=ele,
+                            posts=like_posts,
+                            media=media,
+                            model_id=model_id,
+                            username=username,
+                        )
+                        manager.Manager.stats_manager.update_and_print_stats(
+                            username, "like", like_posts
+                        )
+                    elif action == "unlike":
+                        like_action.process_unlike(
+                            ele=ele,
+                            posts=like_posts,
+                            media=media,
+                            model_id=model_id,
+                            username=username,
+                        )
+                        manager.Manager.stats_manager.update_and_print_stats(
+                            username, "unlike", like_posts
+                        )
+                    manager.Manager.model_manager.mark_as_processed(
+                        username, activity=action
                     )
-                )
-            elif action == "unlike":
-                out.append(
-                    like_action.process_unlike(
-                        ele=ele,
-                        posts=like_posts,
-                        media=media,
-                        model_id=model_id,
-                        username=username,
-                    )
-                )
-        return out
+                    ACTION_SCRIPTS.get(action)(username, media, posts, action=action)
+
+                except Exception as E:
+                    log.debug(f"Unable to complete {action} for {username}")
+                    log.traceback_(E)
+                    log.traceback_(traceback.format_exc())
 
     @exit.exit_wrapper
     @run_async
     async def _process_users_actions_normal(self, userdata=None, session=None):
-        progress_updater.update_user_activity(
-            description="Users with Actions Completed"
-        )
         flushlogs()
-        return await self._get_user_action_function(self._execute_user_action)(
-            userdata, session
+        progress_updater.activity.update_user(
+            description="Users with Actions Completed",
+            total=manager.Manager.model_manager.get_num_scrape_selected_models(),
+            visible=True,
+            completed=0,
         )
+        await self._process_users_normal(userdata, session, self._execute_user_action)
 
 
 def main():
-    try:
-        print_start()
-        paths.temp_cleanup()
-        paths.cleanDB()
-        network.check_cdm()
+    with progress_utils.stop_live_screen(clear="all"):
+        try:
+            print_start()
+            paths.temp_cleanup()
+            paths.cleanDB()
+            network.check_cdm()
 
-        scrapper()
-        paths.temp_cleanup()
-        paths.cleanDB()
-    except KeyboardInterrupt:
-        try:
-            with exit.DelayedKeyboardInterrupt():
-                paths.temp_cleanup()
-                paths.cleanDB()
+            scrapper()
+            paths.temp_cleanup()
+            paths.cleanDB()
+        except KeyboardInterrupt:
+            try:
+                with exit.DelayedKeyboardInterrupt():
+                    paths.temp_cleanup()
+                    paths.cleanDB()
+                    raise KeyboardInterrupt
+            except KeyboardInterrupt:
                 raise KeyboardInterrupt
-        except KeyboardInterrupt:
-            raise KeyboardInterrupt
-    except Exception as E:
-        try:
-            with exit.DelayedKeyboardInterrupt():
-                paths.temp_cleanup()
-                paths.cleanDB()
-                log.traceback_(E)
-                log.traceback_(traceback.format_exc())
-                raise E
-        except KeyboardInterrupt:
-            with exit.DelayedKeyboardInterrupt():
-                raise E
+        except Exception as E:
+            try:
+                with exit.DelayedKeyboardInterrupt():
+                    paths.temp_cleanup()
+                    paths.cleanDB()
+                    log.traceback_(E)
+                    log.traceback_(traceback.format_exc())
+                    raise E
+            except KeyboardInterrupt:
+                with exit.DelayedKeyboardInterrupt():
+                    raise E
 
 
 def daemon_process():
@@ -194,7 +210,7 @@ def daemon_process():
     if settings.get_settings().output_level == "PROMPT":
         log.info("[bold]silent-mode on[/bold]")
     log.info("[bold]Daemon mode on[/bold]")
-    manager.Manager.model_manager.getselected_usernames()
+    manager.Manager.model_manager.sync_models()
     actions.select_areas()
     try:
         worker_thread = threading.Thread(
@@ -260,16 +276,14 @@ def process_selected_areas():
 
 
 def scrapper():
-    global selectedusers
-    selectedusers = None
-    args = read_args.retriveArgs()
+    args = settings.get_args()
     if args.daemon:
-        if len(args.action) == 0 and not args.scrape_paid:
+        if len(args.actions) == 0 and not args.scrape_paid:
             prompts.action_prompt()
         daemon_process()
-    elif len(args.action) > 0 or args.scrape_paid:
+    elif len(args.actions) > 0 or args.scrape_paid:
         process_selected_areas()
-    elif len(args.action) == 0:
+    elif len(args.actions) == 0:
         process_prompts()
 
 

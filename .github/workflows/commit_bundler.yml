@@ -78,7 +78,6 @@ jobs:
       - name: Set Version Environment Variables
         shell: bash
         run: |
-          echo "SETUPTOOLS_SCM_PRETEND_VERSION=${{ needs.generate_version.outputs.version }}" >> $GITHUB_ENV
           echo "HATCH_VCS_PRETEND_VERSION=${{ needs.generate_version.outputs.version }}" >> $GITHUB_ENV
 
       - name: Install Dependencies and Build Tools
@@ -193,11 +192,12 @@ jobs:
         run: ls -R artifacts
 
       - name: Create or Update Release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.17.0
+
         with:
           artifacts: artifacts/*/* # Attach any downloaded artifacts (will include only those that were built successfully)
           # Combined tag for uniqueness and chronological sorting
-          tag: "${{ needs.generate_version.outputs.base_version }}-${{ needs.generate_version.outputs.short_hash }}-${{ needs.generate_version.outputs.commit_timestamp }}"
+          tag: "${{ needs.generate_version.outputs.base_version }}+${{ needs.generate_version.outputs.short_hash }}.${{ needs.generate_version.outputs.commit_timestamp }}"
           # Human-readable name with all key details
           name: "Dev Build ${{ needs.generate_version.outputs.base_version }} (Commit ${{ needs.generate_version.outputs.short_hash }}) - ${{ needs.generate_version.outputs.commit_timestamp }}"
           

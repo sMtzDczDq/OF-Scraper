@@ -5,7 +5,7 @@ import pathlib
 import xxhash
 
 import ofscraper.classes.placeholder as placeholder
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.settings as settings
 from ofscraper.db.operations_.media import get_dupe_media_files, get_dupe_media_hashes
 
@@ -15,7 +15,9 @@ log = logging.getLogger("shared")
 fileHashes = {}
 
 
-def get_hash(file_data, mediatype=None):
+def get_hash(
+    file_data,
+):
     global fileHashes
     hash = None
     if settings.get_settings().hash is None:
@@ -32,7 +34,7 @@ def get_hash(file_data, mediatype=None):
 
 def _calc_hash(file_data):
     hasher = xxhash.xxh128()
-    BUF_SIZE = constants.getattr("BUF_SIZE")
+    BUF_SIZE = of_env.getattr("BUF_SIZE")
     with open(file_data, "rb") as f:
         buffered_f = io.BufferedReader(f, buffer_size=BUF_SIZE)
         for block in iter(lambda: buffered_f.read(BUF_SIZE), b""):
@@ -44,7 +46,9 @@ def _calc_hash(file_data):
 def remove_dupes_hash(username, model_id, mediatype=None):
     if not settings.get_settings().hash:
         return
-    hashes = get_dupe_media_hashes(username=username, model_id=model_id, mediatype=None)
+    hashes = get_dupe_media_hashes(
+        username=username, model_id=model_id, mediatype=mediatype
+    )
     for hash in hashes:
         files = get_dupe_media_files(username=username, model_id=model_id, hash=hash)
         filter_files = list(filter(lambda x: pathlib.Path(x).is_file(), files))

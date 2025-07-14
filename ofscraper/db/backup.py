@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import logging
@@ -19,7 +19,7 @@ from rich.console import Console
 
 import ofscraper.classes.placeholder as placeholder
 import ofscraper.utils.cache as cache
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 from ofscraper.db.difference import get_group_difference
 from ofscraper.utils.paths.manage import copy_path
 
@@ -82,7 +82,7 @@ def create_backup(model_id, username, backup=None, db_path=None, **kwargs):
         database_copy = database_path.parent / "backup" / f"{backup}"
         database_copy.parent.mkdir(parents=True, exist_ok=True)
         copy_path(database_path, database_copy)
-    elif now - last > constants.getattr("DBINTERVAL") and database_path.exists():
+    elif now - last > of_env.getattr("DBINTERVAL") and database_path.exists():
         database_copy = placeholder.databasePlaceholder().databasePathCopyHelper(
             model_id, username
         )

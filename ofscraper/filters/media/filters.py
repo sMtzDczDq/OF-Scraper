@@ -11,7 +11,7 @@ from ofscraper.db.operations_.media import (
     get_media_ids_downloaded,
     get_media_ids_downloaded_model,
 )
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 
 
 log = logging.getLogger("shared")
@@ -21,25 +21,14 @@ def sort_by_date(media):
     return sorted(media, key=lambda x: x.date)
 
 
-# protect db from dupe inserts
-def dupefilter(media):
-    ids = set()
-    output = []
-    for item in media:
-        id_pair = (item.id, item.postid) if hasattr(item, "postid") else (item.id, None)
-        if not id_pair or id_pair not in ids:
-            ids.add(id_pair)
-            output.append(item)
-    return output
-
-
 # dupe filters that prioritize viewable
 def dupefiltermedia(media):
     output = defaultdict(lambda: None)
-    if constants.getattr("ALLOW_DUPE_MEDIA"):
+    media = sorted(media, key=lambda item: (item.post.date, item.id, item.count))
+    if of_env.getattr("ALLOW_DUPE_MEDIA"):
         for item in media:
-            if not output[(item.id, item.postid)]:
-                output[(item.id, item.postid)] = item
+            if not output[(item.id, item.post_id)]:
+                output[(item.id, item.post_id)] = item
     else:
         for item in media:
             if not output[item.id]:
@@ -68,7 +57,7 @@ def ele_count_filter(media):
 
 
 def mediatype_type_filter(media):
-    filtersettings = settings.get_settings().mediatypes
+    filtersettings = settings.get_settings().mediatype
     if isinstance(filtersettings, str):
         filtersettings = filtersettings.split(",")
     if isinstance(filtersettings, list):
@@ -76,7 +65,6 @@ def mediatype_type_filter(media):
         filtersettings = list(filter(lambda x: x != "", filtersettings))
         if len(filtersettings) == 0:
             return media
-        log.info(f"filtering Media to {','.join(filtersettings)}")
         media = list(filter(lambda x: x.mediatype.lower() in filtersettings, media))
     else:
         log.info("The settings you picked for the filter are not valid\nNot Filtering")
@@ -165,6 +153,10 @@ def previous_download_filter(medialist, username=None, model_id=None):
     log = logging.getLogger("shared")
     log.info("reading database to retrive previous downloads")
     medialist = seperate.seperate_by_self(medialist)
+    # sort to key order same
+    medialist = sorted(
+        medialist, key=lambda item: (item.post.date, item.id, item.count)
+    )
     if settings.get_settings().force_all:
         log.info("forcing all media to be downloaded")
     elif settings.get_settings().force_model_unique:
@@ -203,7 +195,7 @@ def post_id_filter(media):
     if not bool(settings.get_settings().post_id):
         return media
     wanted = set([str(x) for x in settings.get_settings().post_id])
-    return list(filter(lambda x: str(x.postid) in wanted, media))
+    return list(filter(lambda x: str(x.post_id) in wanted, media))
 
 
 # post filters

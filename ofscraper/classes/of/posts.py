@@ -1,24 +1,146 @@
 import logging
-
 import arrow
 
 import ofscraper.classes.of.base as base
 import ofscraper.classes.of.media as Media
 import ofscraper.utils.config.data as data
+import ofscraper.filters.media.filters as helpers
 
 log = logging.getLogger("shared")
 
 
 class Post(base.base):
-    def __init__(self, post, model_id, username, responsetype=None, label=None):
+    """
+    Represents a single post from OnlyFans.
+    This class holds its own data and the logic to perform detailed filtering on its media.
+    Its eligibility for actions is determined externally and stored in boolean flags.
+    """
+
+    def __init__(
+        self, post, model_id, username, responsetype=None, label=None, mode="download"
+    ):
         super().__init__()
         self._post = post
-        self._model_id = int(model_id)
+        self._model_id = int(model_id) if model_id else None
         self._username = username
         self._responsetype = responsetype
         self._label = label
 
-    # All media return from API dict
+        self.is_download_candidate = False
+        self.is_like_candidate = False
+        self.is_text_candidate = False
+
+        self.is_actionable_like = False
+
+        self.like_attempted = False
+        self.like_success = None
+
+        self.text_download_attempted = False
+        self.text_download_succeeded = None
+
+        self.is_metadata_candidate = False
+
+        self.media_for_metadata = []
+        self.media_to_download = []
+
+    # --------------------------------------------------------------------------------
+    # --- Action Preparation & Marking Methods ---
+    # --------------------------------------------------------------------------------
+
+    def prepare_media_for_download(self):
+        """
+        Processes this post's media to determine which items are candidates
+        for download, assuming this post has already been marked as a download candidate.
+        """
+        media = self.media
+        if self.media_to_download:
+            return self.media_to_download
+        if not media:
+            return []
+        media = self._apply_media_filters(media)
+        self.media_to_download = media
+        return media
+
+    def prepare_media_for_metadata(self):
+        """
+        Processes this post's media to determine which items are candidates
+        for download, assuming this post has already been marked as a download candidate.
+        """
+        media = self.media
+        if self.media_for_metadata:
+            return self.media_for_metadata
+        if not media:
+            return []
+        media = self._apply_media_filters(media)
+        self.media_for_metadata = media
+        return media
+
+    def prepare_post_for_like(self, like_action=True):
+        """
+        Determines if this post is specifically actionable for a like/unlike,
+        assuming this post has already been marked as a like candidate.
+        """
+        is_candidate = self.opened and self.responsetype.capitalize() in {
+            "Timeline",
+            "Archived",
+            "Pinned",
+            "Streams",
+        }
+        if not is_candidate:
+            self.is_actionable_like = False
+            return
+
+        if like_action and not self.favorited:
+            self.is_actionable_like = True
+        elif not like_action and self.favorited:
+            self.is_actionable_like = True
+        else:
+            self.is_actionable_like = False
+
+    def mark_post_liked(self, success=True):
+        """
+        Updates the success status of the post after a like/unlike attempt.
+        """
+        self.like_attempted = True
+        self.like_success = success
+        if success:
+            self._post["isFavorite"] = True
+            self.is_actionable_like = False
+
+    def mark_post_unliked(self, success=True):
+        """
+        Updates the success status of the post after a like/unlike attempt.
+        """
+        self.like_attempted = True
+        self.like_success = success
+        if success:
+            self._post["isFavorite"] = False
+            self.is_actionable_like = False
+
+    def mark_like_attempt(self):
+        """
+        Updates the status of the post before a like/unlike attempt.
+        """
+        self.like_attempted = True
+
+    def mark_text_downloaded(self, success: bool):
+        """Updates the status of the post after a text download attempt."""
+        self.text_download_attempted = True
+        self.text_download_succeeded = success
+
+    def mark_text_download_attempt(self):
+        """Marks that a text download has been attempted."""
+        self.text_download_attempted = True
+
+    @property
+    def missed_downloads(self):
+        """Convenience property to see what failed to download."""
+        return self.failed_downloads
+
+    # --------------------------------------------------------------------------------
+    # --- Data Access Properties (Complete) ---
+    # --------------------------------------------------------------------------------
+
     @property
     def post_media(self):
         return self._post.get("media") or []
@@ -45,35 +167,26 @@ class Post(base.base):
 
     @property
     def archived(self):
-        if self.post.get("isArchived"):
-            return 1
-        return 0
+        return 1 if self.post.get("isArchived") else 0
 
     @property
     def pinned(self):
-        if self.post.get("isPinned"):
-            return 1
-        return 0
+        return 1 if self.post.get("isPinned") else 0
 
     @property
     def stream(self):
-        if self.post.get("streamId"):
-            return 1
-        return 0
+        return 1 if self.post.get("streamId") else 0
 
     @property
     def favorited(self):
-        (
-            self.post.get("canToggleFavorite") is False
-            if self.post.get("canToggleFavorite") is not None
-            else self.post.get("isFavorite")
-        )
+        if self.post.get("isFavorite"):
+            return True
+        else:
+            return False
 
     @property
     def opened(self):
-        if self.post.get("isOpened"):
-            return 1
-        return 0
+        return 1 if self.post.get("isOpened") else 0
 
     @property
     def regular_timeline(self):
@@ -81,19 +194,16 @@ class Post(base.base):
 
     @property
     def db_sanitized_text(self):
-        string = self.db_cleanup(self.text)
-        return string
+        return self.db_cleanup(self.text)
 
     @property
     def file_sanitized_text(self):
-        string = self.file_cleanup(self.text or self.id)
-        return string
+        return self.file_cleanup(self.text or self.id)
 
     @property
     def text(self):
         return self._post.get("text")
 
-    # text for posts
     @property
     def db_text(self):
         return self.text if not data.get_sanitizeDB() else self.db_sanitized_text
@@ -117,10 +227,6 @@ class Post(base.base):
         return self.post.get("responseType")
 
     @property
-    def modified_responsetype(self):
-        return self.modified_response_helper()
-
-    @property
     def id(self):
         return self._post["id"]
 
@@ -128,17 +234,13 @@ class Post(base.base):
     def date(self):
         return self._post.get("postedAt") or self._post.get("createdAt")
 
-    # modify verison of post date
     @property
     def formatted_date(self):
         return arrow.get(self.date).format("YYYY-MM-DD hh:mm:ss")
 
     @property
     def value(self):
-        if self.price == 0:
-            return "free"
-        elif self.price > 0:
-            return "paid"
+        return "free" if self.price == 0 else "paid"
 
     @property
     def price(self):
@@ -146,14 +248,12 @@ class Post(base.base):
 
     @property
     def paid(self):
-        if (
+        return bool(
             self.post.get("isOpen")
             or self.post.get("isOpened")
             or len(self.media) > 0
             or self.price != 0
-        ):
-            return True
-        return False
+        )
 
     @property
     def fromuser(self):
@@ -166,53 +266,63 @@ class Post(base.base):
     def preview(self):
         return self._post.get("preview")
 
-    # media object array for media that is unlocked or viewable
     @property
-    def media(self):
+    def media(self) -> list[Media.Media]:
+        """Returns a list of all viewable media objects for this post."""
         if int(self.fromuser) != int(self.model_id):
             return []
-        else:
-            media = map(
-                lambda x: Media.Media(x[1], x[0], self), enumerate(self.post_media)
-            )
-            return list(filter(lambda x: x.canview is True, media))
+        media_items = map(
+            lambda x: Media.Media(x[1], x[0], self), enumerate(self.post_media)
+        )
+        return list(filter(lambda x: x.canview is True, media_items))
 
-    # media object array for all media
     @property
-    def all_media(self):
+    def all_media(self) -> list[Media.Media]:
+        """Returns a list of all media objects for this post, regardless of view status."""
         return list(
             map(lambda x: Media.Media(x[1], x[0], self), enumerate(self.post_media))
         )
 
     @property
     def expires(self):
-        return (
-            self._post.get("expiredAt", {}) or self._post.get("expiresAt", None)
-        ) is not None
+        return (self._post.get("expiredAt") or self._post.get("expiresAt")) is not None
 
     @property
     def mass(self):
-        return self._post.get("isFromQueue", None)
+        return self._post.get("isFromQueue")
 
-    def modified_response_helper(self, mediatype=None):
+    @property
+    def modified_responsetype(self):
         if self.archived:
-            if not bool(data.get_archived_responsetype(mediatype=mediatype)):
+            if not bool(data.get_archived_responsetype()):
                 return "Archived"
-            return data.get_archived_responsetype(mediatype=mediatype)
-
+            return data.get_archived_responsetype()
         else:
-            # remap some values
             response_key = self.responsetype
             response_key = (
                 "timeline"
                 if response_key.lower() in {"post", "posts"}
                 else response_key
             )
-            response = data.responsetype(mediatype=mediatype).get(response_key)
-
-            if response == "":
+            response = data.responsetype().get(response_key)
+            if response in (None, ""):
                 return self.responsetype.capitalize()
-            elif response is None:
-                return self.responsetype.capitalize()
-            elif response != "":
+            else:
                 return response.capitalize()
+
+    def _apply_media_filters(self, media: list) -> list:
+        """
+        Private helper to run a list of media through all configured filters.
+        """
+        media = helpers.sort_by_date(media)
+        media = helpers.mediatype_type_filter(media)
+        media = helpers.posts_date_filter_media(media)
+        media = helpers.temp_post_filter(media)
+        media = helpers.post_text_filter(media)
+        media = helpers.post_neg_text_filter(media)
+        media = helpers.download_type_filter(media)
+        media = helpers.mass_msg_filter(media)
+        media = helpers.media_length_filter(media)
+        media = helpers.media_id_filter(media)
+        media = helpers.post_id_filter(media)
+        return media

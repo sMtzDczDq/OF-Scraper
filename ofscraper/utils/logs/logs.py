@@ -8,15 +8,14 @@ import sys
 
 import certifi
 
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.config.file as config_file
 import ofscraper.utils.console as console
-import ofscraper.utils.logs.utils.level as log_helpers
 import ofscraper.utils.paths.common as common_paths
 import ofscraper.utils.settings as settings
 import ofscraper.utils.system.system as system
 from ofscraper.__version__ import __version__
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
+import ofscraper.utils.cache as cache
 
 
 def printStartValues():
@@ -41,13 +40,6 @@ def printEndValues():
 
 def print_system_log():
     log = logging.getLogger("shared")
-    log_helpers.updateSenstiveDict(
-        f"/{common_paths.get_username()}/", "/your_username/"
-    )
-    log_helpers.updateSenstiveDict(
-        f"\\{common_paths.get_username()}\\", "\\\\your_username\\\\"
-    )
-
     # print info
     log.info(f"Log Level: {settings.get_settings().log_level}")
     log.info(f"version: {__version__}")
@@ -62,7 +54,7 @@ def print_system_log():
 
 
 def print_args():
-    args = read_args.retriveArgs()
+    args = settings.get_args()
     log = logging.getLogger("shared")
     log.debug(args)
     log.debug(f"sys argv:{sys.argv[1:]}") if len(sys.argv) > 1 else None
@@ -75,6 +67,9 @@ def print_config():
 
 def print_start_message():
     log = logging.getLogger("shared")
+    message = cache.get("OFSCRAPER_MESSAGE")
+    if message:
+        return message
     with manager.Manager.get_session() as sess:
         with sess.requests(
             url="https://raw.githubusercontent.com/datawhores/messages/main/ofscraper.MD"
@@ -82,6 +77,7 @@ def print_start_message():
             data = re.sub("\n", "", j.text_())
             if not data:
                 return
+            cache.set("OFSCRAPER_MESSAGE", data)
             log.error(f"{data}")
 
 

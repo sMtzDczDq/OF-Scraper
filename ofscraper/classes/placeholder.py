@@ -2,22 +2,20 @@ import logging
 import os
 import pathlib
 import re
-
 import arrow
 
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.cache as cache
-import ofscraper.utils.config.custom as custom_
 import ofscraper.utils.config.data as data
 import ofscraper.utils.config.file as config_file
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.me as me
 import ofscraper.utils.paths.common as common_paths
 import ofscraper.utils.paths.paths as paths
 import ofscraper.utils.profiles.data as profile_data
 import ofscraper.utils.settings as settings
 from ofscraper.utils.string import parse_safe
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
+from ofscraper.scripts.naming_script import naming_script
 
 
 log = logging.getLogger("shared")
@@ -37,7 +35,6 @@ class basePlaceholder:
             "my_id": my_id,
             "my_username": my_username,
             "root": pathlib.Path((common_paths.get_save_location(mediatype=self._ele))),
-            "customval": custom_.get_custom(),
         }
 
     def async_wrapper(f):
@@ -75,15 +72,20 @@ class tempFilePlaceholder(basePlaceholder):
         dir = await self.gettempDir(self._ele)
         file = self._tempname
         # remove for now
-        # if constants.getattr("ALLOW_DUPE_MEDIA"):
+        # if env.getattr("ALLOW_DUPE_MEDIA"):
         #     file=f"{''.join(random.choice(string.ascii_letters + string.digits) for _ in range(6))}{file}"
-        self._tempfilepath = paths.truncate(pathlib.Path(dir, file))
+        script_name = naming_script(dir, file, self._ele)
+        if not script_name:
+            self._tempfilepath = paths.truncate(pathlib.Path(dir, file))
+        else:
+            self._tempfilepath = paths.truncate(pathlib.Path(script_name))
+
         return self
 
     @basePlaceholder.async_wrapper
     async def gettempDir(self, ele, create=True):
         self._tempdir = await self._placeholder.getmediadir(
-            root=(data.get_TempDir(mediatype=ele.mediatype)),
+            root=(data.get_TempDir()),
             create=create,
         )
         self._tempdir.mkdir(parents=True, exist_ok=True)
@@ -113,24 +115,7 @@ class databasePlaceholder(basePlaceholder):
         log.trace(
             f"modelid:{model_id}  database placeholders {list(filter(lambda x:x[0] in set(list(self._variables.keys())),list(locals().items())))}"
         )
-        if data.get_allow_code_execution():
-            if isinstance(customval, dict) is False:
-                try:
-                    custom = eval(customval)
-                except:
-                    custom = {}
-            else:
-                custom = {}
-                for key, val in customval.items():
-                    try:
-                        custom[key] = eval(val)
-                    except:
-                        custom[key] = val
-
-            formatStr = eval("f'{}'".format(data.get_metadata()))
-
-        else:
-            formatStr = data.get_metadata().format(**self._variables)
+        formatStr = data.get_metadata().format(**self._variables)
         data_path = pathlib.Path(formatStr, "user_data.db")
         data_path = pathlib.Path(os.path.normpath(data_path))
         self._metadata = data_path
@@ -174,7 +159,11 @@ class Placeholders(basePlaceholder):
     async def init(self, create=True):
         dir = await self.getmediadir(create=create)
         file = await self.createfilename()
-        self._filepath = paths.truncate(pathlib.Path(dir, file))
+        script_name = naming_script(dir, file, self._ele)
+        if not script_name:
+            self._filepath = paths.truncate(pathlib.Path(dir, file))
+        else:
+            self._filepath = paths.truncate(pathlib.Path(script_name))
         return self
 
     def add_price_variables(self, username):
@@ -182,7 +171,7 @@ class Placeholders(basePlaceholder):
         self._variables.update(
             {
                 "current_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_current_price == 0 else "Paid"
                 )
@@ -191,7 +180,7 @@ class Placeholders(basePlaceholder):
         self._variables.update(
             {
                 "regular_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_regular_price == 0 else "Paid"
                 )
@@ -200,7 +189,7 @@ class Placeholders(basePlaceholder):
         self._variables.update(
             {
                 "promo_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_promo_price == 0 else "Paid"
                 )
@@ -209,7 +198,7 @@ class Placeholders(basePlaceholder):
         self._variables.update(
             {
                 "renewal_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_renewal_price == 0 else "Paid"
                 )
@@ -224,17 +213,13 @@ class Placeholders(basePlaceholder):
     async def add_main_variables(self, ele, username, model_id):
         self._variables.update({"user_name": username})
         self._variables.update({"model_id": model_id})
-        self._variables.update({"post_id": ele.postid})
+        self._variables.update({"post_id": ele.post_id})
         self._variables.update({"media_id": ele.id})
         self._variables.update({"first_letter": username[0].capitalize()})
         self._variables.update({"media_type": ele.mediatype.capitalize()})
         self._variables.update({"value": ele.value.capitalize()})
         self._variables.update(
-            {
-                "date": arrow.get(ele.postdate).format(
-                    data.get_date(mediatype=ele.mediatype)
-                )
-            }
+            {"date": arrow.get(ele.postdate).format(data.get_date())}
         )
         self._variables.update({"model_username": username})
         self._variables.update({"response_type": ele.modified_responsetype})
@@ -250,10 +235,12 @@ class Placeholders(basePlaceholder):
         self._variables.update({"only_filename": ele.no_quality_final_filename})
         self._variables.update({"text": ele.file_text})
         self._variables.update({"config": config_file.open_config()})
-        self._variables.update({"args": read_args.retriveArgs()})
+        self._variables.update({"args": settings.get_args()})
 
     @basePlaceholder.async_wrapper
     async def getmediadir(self, root=None, create=True):
+        if of_env.getattr("SKIP_MEDIADIR_RETRIVAL"):
+            return None
         ele = self._ele
         username = ele.username
         model_id = ele.model_id
@@ -263,26 +250,7 @@ class Placeholders(basePlaceholder):
         log.trace(
             f"modelid:{model_id}  mediadir placeholders {list(filter(lambda x:x[0] in set(list(self._variables.keys())),list(locals().items())))}"
         )
-        if data.get_allow_code_execution():
-            if isinstance(customval, dict) is False:
-                try:
-                    custom = eval(customval)
-                except:
-                    custom = {}
-            else:
-                custom = {}
-                for key, val in customval.items():
-                    try:
-                        custom[key] = eval(val)
-                    except:
-                        custom[key] = val
-            downloadDir = pathlib.Path(
-                eval("f'{}'".format(data.get_dirformat(mediatype=ele.mediatype)))
-            )
-        else:
-            downloadDir = pathlib.Path(
-                data.get_dirformat(mediatype=ele.mediatype).format(**self._variables)
-            )
+        downloadDir = pathlib.Path(data.get_dirformat().format(**self._variables))
         final_path = pathlib.Path(
             os.path.normpath(f"{str(root)}/{str(pathlib.Path(downloadDir))}")
         )
@@ -293,6 +261,8 @@ class Placeholders(basePlaceholder):
 
     @basePlaceholder.async_wrapper
     async def createfilename(self):
+        if of_env.getattr("SKIP_FILENAME_RETRIVAL"):
+            return None
         ele = self._ele
         ext = self._ext
         username = ele.username
@@ -306,29 +276,15 @@ class Placeholders(basePlaceholder):
         out = None
         if ele.responsetype == "profile":
             out = f"{await ele.final_filename}.{ext}"
-        elif data.get_allow_code_execution():
-            if isinstance(customval, dict) is False:
-                try:
-                    custom = eval(customval)
-                except:
-                    custom = {}
-            else:
-                custom = {}
-                for key, val in customval.items():
-                    try:
-                        custom[key] = eval(val)
-                    except:
-                        custom[key] = val
-            out = eval('f"""{}"""'.format(data.get_fileformat(mediatype=ele.mediatype)))
         else:
-            out = data.get_fileformat(mediatype=ele.mediatype).format(**self._variables)
+            out = data.get_fileformat().format(**self._variables)
         out = self._addcount(ele, out)
         log.debug(f"final filename path {out}")
         self._filename = out
         return out
 
     def _addcount(self, ele, out):
-        if not constants.getattr("FILE_COUNT_PLACEHOLDER"):
+        if not of_env.getattr("FILE_COUNT_PLACEHOLDER"):
             return out
         elif not self._needs_count(ele):
             return out
@@ -381,7 +337,7 @@ class Placeholders(basePlaceholder):
 
     @property
     def trunicated_filepath(self):
-        if settings.get_settings(mediatype=self._ele.mediatype).trunicate:
+        if settings.get_settings().trunicate:
             return pathlib.Path(paths.truncate(self._filepath))
         return self._filepath
 
@@ -412,7 +368,11 @@ class Textholders(basePlaceholder):
     async def init(self, create=True):
         dir = await self.getmediadir(create=create)
         file = await self.createfilename()
-        self._filepath = paths.truncate(pathlib.Path(dir, file))
+        script_name = naming_script(dir, file, self._ele)
+        if not script_name:
+            self._filepath = paths.truncate(pathlib.Path(dir, file))
+        else:
+            self._filepath = paths.truncate(pathlib.Path(script_name))
         return self
 
     def add_price_variables(self, username):
@@ -420,7 +380,7 @@ class Textholders(basePlaceholder):
         self._variables.update(
             {
                 "current_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_current_price == 0 else "Paid"
                 )
@@ -429,7 +389,7 @@ class Textholders(basePlaceholder):
         self._variables.update(
             {
                 "regular_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_regular_price == 0 else "Paid"
                 )
@@ -438,7 +398,7 @@ class Textholders(basePlaceholder):
         self._variables.update(
             {
                 "promo_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_promo_price == 0 else "Paid"
                 )
@@ -447,7 +407,7 @@ class Textholders(basePlaceholder):
         self._variables.update(
             {
                 "renewal_price": (
-                    constants.getattr("MODEL_PRICE_PLACEHOLDER")
+                    of_env.getattr("MODEL_PRICE_PLACEHOLDER")
                     if not modelObj
                     else "Free" if modelObj.final_renewal_price == 0 else "Paid"
                 )
@@ -465,9 +425,7 @@ class Textholders(basePlaceholder):
         self._variables.update({"post_id": ele.id})
         self._variables.update({"first_letter": username[0].capitalize()})
         self._variables.update({"value": ele.value.capitalize()})
-        self._variables.update(
-            {"date": arrow.get(ele.date).format(data.get_date(mediatype="Text"))}
-        )
+        self._variables.update({"date": arrow.get(ele.date).format(data.get_date())})
         self._variables.update({"model_username": username})
         self._variables.update({"media_type": "Text"})
         self._variables.update({"response_type": ele.modified_responsetype})
@@ -477,7 +435,7 @@ class Textholders(basePlaceholder):
         )
         self._variables.update({"text": ele.text_trunicate(ele.file_sanitized_text)})
         self._variables.update({"config": config_file.open_config()})
-        self._variables.update({"args": read_args.retriveArgs()})
+        self._variables.update({"args": settings.get_args()})
 
         self._variables.update({"quality": "source"})
         self._variables.update(
@@ -495,32 +453,14 @@ class Textholders(basePlaceholder):
         ele = self._ele
         username = ele.username
         model_id = ele.model_id
-        root = pathlib.Path(root or common_paths.get_save_location(mediatype="Text"))
+        root = pathlib.Path(root or common_paths.get_save_location())
         await self.add_common_variables(ele, username, model_id)
         globals().update(self._variables)
         log.trace(
             f"modelid:{model_id}  mediadir placeholders {list(filter(lambda x:x[0] in set(list(self._variables.keys())),list(locals().items())))}"
         )
-        if data.get_allow_code_execution():
-            if isinstance(customval, dict) is False:
-                try:
-                    custom = eval(customval)
-                except:
-                    custom = {}
-            else:
-                custom = {}
-                for key, val in customval.items():
-                    try:
-                        custom[key] = eval(val)
-                    except:
-                        custom[key] = val
-            downloadDir = pathlib.Path(
-                eval("f'{}'".format(data.get_dirformat(mediatype="Text")))
-            )
-        else:
-            downloadDir = pathlib.Path(
-                data.get_dirformat(mediatype="Text").format(**self._variables)
-            )
+
+        downloadDir = pathlib.Path(data.get_dirformat().format(**self._variables))
         final_path = pathlib.Path(
             os.path.normpath(f"{str(root)}/{str(pathlib.Path(downloadDir))}")
         )
@@ -544,24 +484,10 @@ class Textholders(basePlaceholder):
         out = None
         if ele.responsetype == "profile":
             text = ele.file_sanitized_text
-            text = re.sub(" ", data.get_spacereplacer(mediatype="Text"), text)
+            text = re.sub(" ", data.get_spacereplacer(), text)
             out = f"{text}.{ext}"
-        elif data.get_allow_code_execution():
-            if isinstance(customval, dict) is False:
-                try:
-                    custom = eval(customval)
-                except:
-                    custom = {}
-            else:
-                custom = {}
-                for key, val in customval.items():
-                    try:
-                        custom[key] = eval(val)
-                    except:
-                        custom[key] = val
-            out = eval('f"""{}"""'.format(data.get_fileformat(mediatype="Text")))
         else:
-            out = data.get_fileformat(mediatype="Text").format(**self._variables)
+            out = data.get_fileformat().format(**self._variables)
         log.debug(f"final filename path {out}")
         self._filename = out
         return out
@@ -580,7 +506,7 @@ class Textholders(basePlaceholder):
 
     @property
     def trunicated_filepath(self):
-        if settings.get_settings(mediatype=self._ele.mediatype).trunicate:
+        if settings.get_settings().trunicate:
             return pathlib.Path(paths.truncate(self._filepath))
         return self._filepath
 

@@ -1,6 +1,6 @@
 import cloup as click
 
-from ofscraper.const.constants import DYNAMIC_OPTIONS, KEY_OPTIONS
+from ofscraper.utils.const import KEY_OPTIONS, DYNAMIC_OPTIONS
 
 no_cache_option = click.option(
     "-nc",
@@ -27,15 +27,6 @@ key_mode_option = click.option(
     type=click.Choice(KEY_OPTIONS),
 )
 
-
-key_db_option = click.option(
-    "-kd",
-    "--keydb-api",
-    "--key-db-api",
-    "keydb_api",
-    help="api key for keydb cdrm",
-    default=None,
-)
 
 private_key_option = click.option(
     "-pk",
@@ -78,27 +69,4 @@ update_profile_option = click.option(
     help="Get up-to-date profile info instead of using cache",
     default=False,
     is_flag=True,
-)
-
-download_script_option = click.option(
-    "-dls",
-    "--download-script",
-    "download_script",
-    help="""
-    \b
-    runs a script post model download script
-    addional args sent to script username, model_id, media json ,and post json
-    """,
-)
-
-
-post_script_option = click.option(
-    "-ps",
-    "--post-script",
-    "post_script",
-    help="""
-    \b
-    runs a script after processing all users
-    addional args sent to script userdata array,
-    """,
 )

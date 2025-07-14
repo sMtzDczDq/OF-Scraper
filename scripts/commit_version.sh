@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # A best practice for scripts: exit immediately if any command fails.
 set -e
 
@@ -69,30 +68,19 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 
     # --- Calculate is_newer_than_last_successful_run ---
     if [ -n "$GH_TOKEN" ] && [ -n "$GITHUB_REPOSITORY" ] && [ -n "$GITHUB_REF" ] && [ -n "$GITHUB_WORKFLOW_REF" ]; then
-      # --- FINAL WORKFLOW_ID FIX: Dynamically derive workflow file name from GITHUB_WORKFLOW_REF ---
-      # This is the most robust and dynamic way to get the workflow ID for the gh api call
-      WORKFLOW_PATH_FROM_ROOT="${GITHUB_WORKFLOW_REF#*/.github/workflows/}" # Remove leading path part
-      WORKFLOW_ID="${WORKFLOW_PATH_FROM_ROOT%@*}" # Remove "@ref" part
-      echo "DEBUG: Final WORKFLOW_ID for API call: '${WORKFLOW_ID}' (Dynamically derived from GITHUB_WORKFLOW_REF)"
-      # (The previous debug echoes for raw ref and parsing steps are removed for conciseness)
+      # Dynamically derive workflow file name from GITHUB_WORKFLOW_REF
+      WORKFLOW_PATH_FROM_ROOT="${GITHUB_WORKFLOW_REF#*/.github/workflows/}"
+      WORKFLOW_ID="${WORKFLOW_PATH_FROM_ROOT%@*}"
+      echo "DEBUG: Final WORKFLOW_ID for API call: '${WORKFLOW_ID}'"
 
       echo "DEBUG: Attempting to query workflow runs for workflow ID '$WORKFLOW_ID' on branch '$GITHUB_REF'."
-      # This is the confirmed working gh api call with query parameters in the URL string
       LAST_SUCCESSFUL_RUN_SHA=$(gh api \
         --paginate \
         "/repos/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_ID}/runs?status=success&event=push" \
         --jq '.workflow_runs[0].head_sha' \
-        --header 'Accept: application/vnd.github.com/v3+okay I have a smilar script called release_version.sh
-
-
-
-I want to incorpate is usage into this script
-
-
-
-I want this script to also handle maybe updating latest if it is newer than the last json' \
+        --header 'Accept: application/vnd.github.com/v3+json' \
         --header 'X-GitHub-Api-Version: 2022-11-28' \
-        2>/dev/null | head -n 1) # Suppress stderr, take first line
+        2>/dev/null | head -n 1)
 
       echo "Last successful run SHA: ${LAST_SUCCESSFUL_RUN_SHA:-None}"
 
@@ -106,7 +94,7 @@ I want this script to also handle maybe updating latest if it is newer than the 
         IS_NEWER="false"
       fi
     else
-      echo "Insufficient GitHub Actions environment variables (GH_TOKEN, GITHUB_REPOSITORY, GITHUB_REF, or GITHUB_WORKFLOW_REF missing) to calculate 'is_newer_than_last_successful_run'."
+      echo "Insufficient GitHub Actions environment variables to calculate 'is_newer_than_last_successful_run'."
       IS_NEWER="false"
     fi
     echo "Is Newer Than Last Successful Run: ${IS_NEWER}"
@@ -132,7 +120,6 @@ echo "Is Newer Than Last Successful Run: ${IS_NEWER}"
 if [ -n "$GITHUB_ENV" ] && [ -n "$GITHUB_OUTPUT" ]; then
     echo "--- GitHub Actions environment detected. Setting outputs and env vars. ---"
     
-    echo "SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}" >> "$GITHUB_ENV"
     echo "HATCH_VCS_PRETEND_VERSION=${VERSION}" >> "$GITHUB_ENV"
     
     echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -144,8 +131,4 @@ if [ -n "$GITHUB_ENV" ] && [ -n "$GITHUB_OUTPUT" ]; then
     echo "SANITIZED_BASE_VERSION=${SANITIZED_BASE_VERSION}" >> "$GITHUB_OUTPUT"
     echo "PUSH_TYPE=${PUSH_TYPE}" >> "$GITHUB_OUTPUT"
     echo "IS_NEWER_THAN_LAST_SUCCESSFUL_RUN=${IS_NEWER}" >> "$GITHUB_OUTPUT"
-else
-    export SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
-    export HATCH_VCS_PRETEND_VERSION=${VERSION}
-    echo "✅ Local environment variables exported. To use them, run this script with 'source'."
 fi

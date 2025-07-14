@@ -1,9 +1,10 @@
-import sys
 import shutil
 import subprocess
 import re
 import logging
 import ofscraper.utils.settings as settings
+from ofscraper.utils.system.subprocess import run
+import ofscraper.utils.of_env.of_env as env
 
 log = logging.getLogger("shared")
 
@@ -22,12 +23,14 @@ def _is_valid_ffmpeg(path: str | None) -> bool:
 
     log.debug(f"Running validation check on candidate path: {path}")
     try:
-        result = subprocess.run(
+        result = run(
             [path, "-version"],
             capture_output=True,
             text=True,
             check=False,
-            encoding='utf-8',
+            encoding="utf-8",
+            level=env.getattr("FFMPEG_SUBPROCESS_LEVEL"),
+            name="ffmpeg",
         )
         output = result.stdout + result.stderr
 
@@ -35,12 +38,17 @@ def _is_valid_ffmpeg(path: str | None) -> bool:
             log.info(f"Validation successful: Found valid FFmpeg binary at '{path}'")
             return True
         else:
-            log.warning(f"Path '{path}' is executable, but output did not confirm it's FFmpeg.")
+            log.warning(
+                f"Path '{path}' is executable, but output did not confirm it's FFmpeg."
+            )
             log.debug(f"Full output from '{path}':\n{output}")
             return False
 
     except (OSError, subprocess.SubprocessError):
-        log.error(f"Execution failed for binary at '{path}'. It may be incompatible or corrupt.", exc_info=True)
+        log.error(
+            f"Execution failed for binary at '{path}'. It may be incompatible or corrupt.",
+            exc_info=True,
+        )
         return False
 
 
@@ -53,15 +61,15 @@ def get_ffmpeg() -> str:
     2. Check for a path defined in settings.
     3. Attempt to find the binary bundled with the 'pyffmpeg' library.
     4. Fallback to checking if 'ffmpeg' is in the system's PATH.
-    
+
     Returns:
         str: The absolute path to the FFmpeg executable.
-    
+
     Raises:
         FileNotFoundError: If a validated FFmpeg binary cannot be found.
     """
     global _ffmpeg_path
-    
+
     if _ffmpeg_path:
         return _ffmpeg_path
 
@@ -75,9 +83,12 @@ def get_ffmpeg() -> str:
         return _ffmpeg_path
 
     # Step 2: Try the optional pyffmpeg library.
-    log.debug("Settings path invalid or not found. Attempting to use 'pyffmpeg' library.")
+    log.debug(
+        "Settings path invalid or not found. Attempting to use 'pyffmpeg' library."
+    )
     try:
         from pyffmpeg import FFmpeg
+
         pyffmpeg_path = FFmpeg().get_ffmpeg_bin()
         if _is_valid_ffmpeg(pyffmpeg_path):
             _ffmpeg_path = pyffmpeg_path
@@ -85,7 +96,10 @@ def get_ffmpeg() -> str:
     except ImportError:
         log.debug("'pyffmpeg' not installed. Skipping.")
     except Exception:
-        log.error("The 'pyffmpeg' library is installed but failed to provide a valid binary.", exc_info=True)
+        log.error(
+            "The 'pyffmpeg' library is installed but failed to provide a valid binary.",
+            exc_info=True,
+        )
 
     # Step 3: Fallback to system PATH.
     log.debug("No valid binary from settings or pyffmpeg. Checking system PATH.")

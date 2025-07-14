@@ -1,37 +1,28 @@
 import logging
 import traceback
 
-import ofscraper.classes.of.media as media_class
-import ofscraper.commands.scraper.actions.utils.log as logs
 import ofscraper.utils.text as text
 from ofscraper.utils.context.run_async import run
-import ofscraper.utils.args.accessors.read as read_args
-import ofscraper.utils.settings as settings
+from ofscraper.managers.postcollection import PostCollection
+import ofscraper.managers.manager as manager
 
 
 @run
-async def textDownloader(objectdicts, username=None):
+async def textDownloader(values, username=None):
     log = logging.getLogger("shared")
-    if settings.get_settings().command == "metadata":
-        return
-    elif not bool(objectdicts):
-        return
-    elif not settings.get_download_text():
-        return
+    postcollection = PostCollection()
+    posts = None
     try:
-        objectdicts = (
-            [objectdicts] if not isinstance(objectdicts, list) else objectdicts
-        )
+        values = [values] if not isinstance(values, list) else values
+        postcollection.add_posts(values)
+        posts = postcollection.posts
+        if not posts:
+            log.info("No text files found to download")
+            return []
         log.info("Downloading Text Files")
-        data = (
-            {
-                e.postid if isinstance(e, media_class.Media) else e.id: e
-                for e in objectdicts
-            }
-        ).values()
-        count, fails, exists = await text.get_text(data)
-        username = username or "Unknown"
-        return logs.text_log(username, count, fails, exists, log=log)
+        await text.get_text(username, posts)
     except Exception as E:
         log.debug(f"Issue with text {E}")
         log.debug(f"Issue with text {traceback.format_exc()}")
+    manager.Manager.stats_manager.update_and_print_stats(username, "text", posts)
+    return []

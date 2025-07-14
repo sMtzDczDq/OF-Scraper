@@ -1,10 +1,10 @@
 import os
 import pathlib
 
-import ofscraper.const.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.config.data as data
 import ofscraper.utils.config.file as config_file
-import ofscraper.utils.constants as constants_attr
+import ofscraper.utils.of_env.of_env as env_attr
 import ofscraper.utils.dates as dates_manager
 import ofscraper.utils.profiles.data as profile_data
 import ofscraper.utils.profiles.tools as tools
@@ -21,7 +21,7 @@ def getcachepath():
 
 
 def get_auth_file():
-    return get_profile_path() / constants_attr.getattr("authFile")
+    return get_profile_path() / env_attr.getattr("authFile")
 
 
 def get_username():
@@ -54,8 +54,12 @@ def get_config_home():
 
 def get_config_path():
     configPath = settings.get_args().config
-    defaultPath = pathlib.Path.home() / constants.configPath / constants.configFile
-    ofscraperHome = pathlib.Path.home() / constants.configPath
+    defaultPath = (
+        pathlib.Path.home()
+        / of_env.getattr("configPath")
+        / of_env.getattr("configFile")
+    )
+    ofscraperHome = pathlib.Path.home() / of_env.getattr("configPath")
 
     if configPath is None or configPath == "":
         return defaultPath
@@ -64,10 +68,10 @@ def get_config_path():
     if configPath.is_file():
         return configPath
     elif configPath.is_dir():
-        return configPath / constants.configFile
+        return configPath / of_env.getattr("configFile")
     # enforce that configpath needs some extension
     elif configPath.suffix == "":
-        return configPath / constants.configFile
+        return configPath / of_env.getattr("configFile")
 
     elif str(configPath.parent) == ".":
         return ofscraperHome / configPath
@@ -84,7 +88,7 @@ def getlogpath():
         )
     else:
         path = (
-           get_log_folder()
+            get_log_folder()
             / f'ofscraper_{data.get_main_profile()}_{dates_manager.getLogDate().get("day")}.log'
         )
     path = pathlib.Path(path).resolve()
@@ -93,9 +97,8 @@ def getlogpath():
 
 
 def get_log_folder():
-    return (
-            get_config_home()
-            / "logging")
+    return get_config_home() / "logging"
+
 
 def get_profile_path(name=None):
     if name:
@@ -109,13 +112,12 @@ def get_profile_path(name=None):
 
 def get_save_location(config=None, mediatype=None):
     if config is False:
-        return constants.SAVE_PATH_DEFAULT
+        return of_env.getattr("SAVE_PATH_DEFAULT")
     config = config or config_file.open_config()
     return (
-        config.get("overwrites", {}).get(f"{mediatype}", {}).get("save_location")
-        or config.get("save_location")
+        config.get("save_location")
         or config.get("file_options", {}).get("save_location")
-        or constants_attr.getattr("SAVE_PATH_DEFAULT")
+        or of_env.getattr("SAVE_PATH_DEFAULT")
     )
 
 

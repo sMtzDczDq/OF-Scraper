@@ -1,6 +1,5 @@
-import ofscraper.utils.config.custom as custom
 import ofscraper.utils.config.data as data
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.paths.common as common_paths
 
 
@@ -9,7 +8,7 @@ def get_current_config_schema(config: dict = None) -> dict:
         config = config["config"]
     new_config = {
         (
-            "main_profile" if config is False else constants.getattr("mainProfile")
+            "main_profile" if config is False else of_env.getattr("mainProfile")
         ): data.get_main_profile(config=config),
         "metadata": data.get_metadata(config=config),
         "discord": data.get_discord(config=config),
@@ -36,7 +35,6 @@ def get_current_config_schema(config: dict = None) -> dict:
             "private-key": data.get_private_key(config=config),
             "client-id": data.get_client_id(config=config),
             "key-mode-default": data.get_key_mode(config=config),
-            "keydb_api": data.get_keydb_api(config=config),
         },
         "performance_options": {
             "download_sems": data.get_download_semaphores(config=config),
@@ -46,16 +44,14 @@ def get_current_config_schema(config: dict = None) -> dict:
             "block_ads": data.get_block_ads(config=config),
             "file_size_max": data.get_filesize_max(config=config),
             "file_size_min": data.get_filesize_min(config=config),
-            "length_max": data.get_min_length(config=config),
-            "length_min": data.get_max_length(config=config),
+            "length_max": data.get_max_length(config=config),
+            "length_min": data.get_min_length(config=config),
         },
         "advanced_options": {
-            "code-execution": data.get_allow_code_execution(config=config),
             "dynamic-mode-default": data.get_dynamic(config=config),
             "downloadbars": data.get_show_downloadprogress(config=config),
             "cache-mode": data.cache_mode_helper(config=config),
             "rotate_logs": data.get_rotate_logs(config=config),
-            "custom_values": custom.get_custom(config=config),
             "sanitize_text": data.get_sanitizeDB(config=config),
             "temp_dir": data.get_TempDir(config=config),
             "remove_hash_match": data.get_hash(config=config),
@@ -63,11 +59,16 @@ def get_current_config_schema(config: dict = None) -> dict:
             "enable_auto_after": data.get_enable_after(config=config),
             "default_user_list": data.get_default_userlist(config=config),
             "default_black_list": data.get_default_blacklist(config=config),
-            "logs_expire_time":data.get_logs_expire(config=config),
+            "logs_expire_time": data.get_logs_expire(config=config),
+            "ssl_verify": data.get_ssl_verify(config=config),
+            "env_files": data.get_env_files(config=config),
         },
         "script_options": {
-            "post_download_script": data.get_post_download_script(config=config),
+            "after_action_script": data.get_after_action_script(config=config),
             "post_script": data.get_post_script(config=config),
+            "naming_script": data.get_naming_script(config=config),
+            "after_download_script": data.get_after_download_script(config=config),
+            "skip_download_script": data.get_skip_download_script(config=config),
         },
         "responsetype": {
             "timeline": data.get_timeline_responsetype(config=config),
@@ -79,12 +80,6 @@ def get_current_config_schema(config: dict = None) -> dict:
             "profile": data.get_profile_responsetype(config=config),
             "pinned": data.get_pinned_responsetype(config=config),
             "streams": data.get_streams_responsetype(config=config),
-        },
-        "overwrites": {
-            "audios": data.get_audios_overwrites(config=config),
-            "videos": data.get_videos_overwrites(config=config),
-            "images": data.get_images_overwrites(config=config),
-            "text": data.get_text_overwrites(config=config),
         },
     }
     return new_config
@@ -98,6 +93,7 @@ def config_diff(config):
         config = config["config"]
     schema = get_current_config_schema()
     return _config_diff_helper(config, schema)
+
 
 def _config_diff_helper(config, schema):
     # Check for keys in schema but missing in config

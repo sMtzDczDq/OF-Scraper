@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import asyncio
@@ -16,11 +16,10 @@ import contextvars
 import logging
 import traceback
 
-import ofscraper.main.manager as manager
-import ofscraper.utils.constants as constants
+import ofscraper.managers.manager as manager
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.live.screens as progress_utils
 import ofscraper.utils.live.updater as progress_updater
-from ofscraper.utils.live.updater import add_userlist_task
 from ofscraper.utils.context.run_async import run
 from ofscraper.data.api.common.logs.logs import trace_log_raw, trace_progress_log
 import ofscraper.utils.settings as settings
@@ -38,18 +37,18 @@ async def get_otherlist():
         [
             ele
             not in [
-                constants.getattr("OFSCRAPER_RESERVED_LIST"),
-                constants.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
+                of_env.getattr("OFSCRAPER_RESERVED_LIST"),
+                of_env.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
             ]
-            for ele in settings.get_settings().user_list or []
+            for ele in settings.get_settings().userlist or []
         ]
     ):
         return []
-    with progress_utils.setup_subscription_progress_live():
+    with progress_utils.setup_live("user_list"):
         out.extend(await get_lists())
         out = list(
             filter(
-                lambda x: x.get("name").lower() in settings.get_settings().user_list
+                lambda x: x.get("name").lower() in settings.get_settings().userlist
                 or [],
                 out,
             )
@@ -63,14 +62,14 @@ async def get_otherlist():
 @run
 async def get_blacklist():
     out = []
-    if not settings.get_settings().black_list:
+    if not settings.get_settings().blacklist:
         return []
-    with progress_utils.setup_subscription_progress_live():
-        if len(settings.get_settings().black_list or []) >= 1:
+    with progress_utils.setup_live("user_list"):
+        if len(settings.get_settings().blacklist or []) >= 1:
             out.extend(await get_lists())
         out = list(
             filter(
-                lambda x: x.get("name").lower() in settings.get_settings().black_list
+                lambda x: x.get("name").lower() in settings.get_settings().blacklist
                 or [],
                 out,
             )
@@ -87,11 +86,11 @@ async def get_lists():
     output = []
     tasks = []
     page_count = 0
-    async with manager.Manager.aget_ofsession(
-        sem_count=constants.getattr("SUBSCRIPTION_SEMS"),
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         tasks.append(asyncio.create_task(scrape_for_list(c)))
-        page_task = add_userlist_task(
+        page_task = progress_updater.userlist.add_overall_task(
             f"UserList Pages Progress: {page_count}", visible=True
         )
         while tasks:
@@ -101,7 +100,7 @@ async def get_lists():
                     result, new_tasks_batch = await task
                     new_tasks.extend(new_tasks_batch)
                     page_count = page_count + 1
-                    progress_updater.update_userlist_task(
+                    progress_updater.userlist.update_overall_task(
                         page_task,
                         description=f"UserList Pages Progress: {page_count}",
                     )
@@ -111,7 +110,7 @@ async def get_lists():
                     log.traceback_(traceback.format_exc())
                     continue
             tasks = new_tasks
-    progress_updater.remove_userlist_task(page_task)
+    progress_updater.userlist.remove_overall_task(page_task)
     trace_log_raw("list raw unduped", output)
 
     log.debug(f"[bold]lists name count without Dupes[/bold] {len(output)} found")
@@ -121,10 +120,10 @@ async def get_lists():
 async def scrape_for_list(c, offset=0):
     attempt.set(0)
     new_tasks = []
-    url = constants.getattr("listEP").format(offset)
+    url = of_env.getattr("listEP").format(offset)
     try:
         attempt.set(attempt.get(0) + 1)
-        task = progress_updater.add_userlist_job_task(
+        task = progress_updater.userlist.add_job_task(
             f" : getting lists offset -> {offset}",
             visible=True,
         )
@@ -152,7 +151,7 @@ async def scrape_for_list(c, offset=0):
         raise E
 
     finally:
-        progress_updater.remove_userlist_job_task(task)
+        progress_updater.userlist.remove_job_task(task)
     return out_list, new_tasks
 
 
@@ -161,11 +160,11 @@ async def get_list_users(lists):
     output = []
     tasks = []
     page_count = 0
-    async with manager.Manager.aget_ofsession(
-        sem_count=constants.getattr("SUBSCRIPTION_SEMS"),
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         [tasks.append(asyncio.create_task(scrape_list_members(c, id))) for id in lists]
-        page_task = add_userlist_task(
+        page_task = progress_updater.userlist.add_overall_task(
             f"UserList Users Pages Progress: {page_count}", visible=True
         )
         while tasks:
@@ -175,7 +174,7 @@ async def get_list_users(lists):
                     result, new_tasks_batch = await task
                     new_tasks.extend(new_tasks_batch)
                     page_count = page_count + 1
-                    progress_updater.update_userlist_task(
+                    progress_updater.userlist.update_overall_task(
                         page_task,
                         description=f"UserList Users Pages Progress: {page_count}",
                     )
@@ -186,7 +185,7 @@ async def get_list_users(lists):
                     continue
             tasks = new_tasks
 
-    progress_updater.remove_userlist_task(page_task)
+    progress_updater.userlist.remove_overall_task(page_task)
     outdict = {}
     for ele in output:
         outdict[ele["id"]] = ele
@@ -199,10 +198,10 @@ async def scrape_list_members(c, item, offset=0):
     users = None
     attempt.set(0)
     new_tasks = []
-    url = constants.getattr("listusersEP").format(item.get("id"), offset)
+    url = of_env.getattr("listusersEP").format(item.get("id"), offset)
     try:
         attempt.set(attempt.get(0) + 1)
-        task = progress_updater.add_userlist_job_task(
+        task = progress_updater.userlist.add_job_task(
             f" : offset -> {offset} + list name -> {item.get('name')}",
             visible=True,
         )
@@ -239,5 +238,5 @@ async def scrape_list_members(c, item, offset=0):
         raise E
 
     finally:
-        progress_updater.remove_userlist_job_task(task)
+        progress_updater.userlist.remove_job_task(task)
     return users, new_tasks

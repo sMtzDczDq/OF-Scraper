@@ -1,18 +1,15 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
-"""
 
-import json
-import math
+"""
 
 from InquirerPy.base import Choice
 from InquirerPy.separator import Separator
@@ -23,13 +20,15 @@ from rich.console import Console
 import ofscraper.prompts.prompt_strings as prompt_strings
 import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
-import ofscraper.utils.config.custom as custom
 import ofscraper.utils.config.file as config_file
 import ofscraper.utils.config.schema as schema
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.paths.common as common_paths
 import ofscraper.utils.settings as settings
 import ofscraper.utils.config.data as data
+import ofscraper.utils.const as const
+from humanfriendly import parse_size
+
 
 console = Console()
 
@@ -52,9 +51,6 @@ def funct(prompt_):
     date: date format for placeholders
     text_type_default: toggle for word count type
     trunication_default: toggle for trunicating filenames
-    audio: optional overwrites for audio
-    videos: optional overwrites for video
-    images: optional overwrties from images
     -----------------------------------
     [Download Options]
     file_size_max: max size allowed for download
@@ -69,14 +65,24 @@ def funct(prompt_):
     ffmeg: path to ffmpeg binary
     -----------------------------------
     [Script Options]
-    post_download_script: script to run after each model
-    post_script: script to run after all models are processed
+    after_action_script: A script that runs after an action for each model has completed.
+   
+    post_script: A script that runs after all actions for all models have completed.
+    naming_script: A script that provides custom logic for generating the final filename. 
+    It outputs the desired filename or path.
+
+    skip_download_script: A script that determines whether to skip or continue a download. 
+    It executes before the download process begins, and should return "False" or an empty string via stdout to 
+    signal that the download should be skipped.
+
+    naming_script: A script to dynamically generate the final filename and path for a media item before download
+    after_download_script: A script that executes after each individual media download is complete
+
     -----------------------------------
     [CDM Options]
     private-key: for manual cdm
     client-id: for manual cdm
     key-mode-default: which cdm
-    keydb_api: for keydb cdm
     -----------------------------------
     [Performance Options]
     download_sems: number of downloads per processor/worker
@@ -85,10 +91,6 @@ def funct(prompt_):
     -----------------------------------
     [Content Filter Options]
     block_ads: use common key words to block ads
-    --------------------------------------------------
-    [Scripts Options]
-    post_download_script: script to run after actions on each model
-    post_script: script to run after all models are processed
     --------------------------------------------------
     [Advanced Options]
     code-execution: allow eval on custom_val
@@ -118,7 +120,7 @@ def funct(prompt_):
 
 
 def config_prompt() -> int:
-    config_prompt_choices = [*constants.getattr("configPromptChoices")]
+    config_prompt_choices = [*of_env.getattr("configPromptChoices")]
     config_prompt_choices.insert(8, Separator())
     config_prompt_choices.insert(11, Separator())
 
@@ -128,7 +130,7 @@ def config_prompt() -> int:
         altx=funct,
         more_instruction=prompt_strings.CONFIG_MENU,
     )
-    return constants.getattr("configPromptChoices")[answer]
+    return of_env.getattr("configPromptChoices")[answer]
 
 
 def download_config():
@@ -147,7 +149,7 @@ or human readable such as 10mb
 Enter 0 for no limit
 """,
                 "default": str(data.get_system_freesize()),
-                "filter": lambda x: int(x) if x != "None" else 0,
+                "filter": lambda x: int(parse_size(x)) if x != "None" else 0,
             },
             {
                 "type": "input",
@@ -303,17 +305,38 @@ def script_config():
         *[
             {
                 "type": "input",
-                "name": "post_download_script",
-                "message": "Script to run after each model is processed",
-                "default": data.get_post_download_script() or "",
+                "name": "after_action_script",
+                "message": "Script to run after each model action completes",
+                "default": data.get_after_action_script() or "",
                 "option_instruction": "Leave empty to skip post download script",
             },
             {
                 "type": "input",
                 "name": "post_script",
-                "message": "Script to run after all models have processed",
+                "message": "Script to run after all model actions complete",
                 "default": data.get_post_script() or "",
                 "option_instruction": "Leave empty to skip post download script",
+            },
+            {
+                "type": "input",
+                "name": "naming_script",
+                "message": "Script to determine final filename before download",
+                "default": data.get_naming_script() or "",
+                "option_instruction": "Leave empty to skip the naming script",
+            },
+            {
+                "type": "input",
+                "name": "skip_download_script",
+                "message": "Script to decide whether to skip a file download",
+                "default": data.get_skip_download_script() or "",
+                "option_instruction": "Leave empty to skip the download skip script",
+            },
+            {
+                "type": "input",
+                "name": "after_download_script",
+                "message": "Script that runs after download complete",
+                "default": data.get_after_download_script() or "",
+                "option_instruction": "Leave empty to skip the download skip script",
             },
         ],
     )
@@ -333,14 +356,7 @@ def cdm_config():
                 "name": "key-mode-default",
                 "message": "Select default key mode for decryption",
                 "default": data.get_key_mode(),
-                "choices": constants.getattr("KEY_OPTIONS"),
-            },
-            {
-                "type": "input",
-                "name": "keydb_api",
-                "message": "keydb api key:\n",
-                "option_instruction": "Required if your using keydb for key-mode",
-                "default": data.get_keydb_api() or "",
+                "choices": const.KEY_OPTIONS,
             },
             {
                 "type": "filepath",
@@ -473,6 +489,7 @@ or human readable such as 10mb
 Enter 0 for no limit
 """,
                 "default": str(data.get_filesize_max()),
+                "filter": lambda x: int(parse_size(x)) if x != "None" else 0,
             },
             {
                 "type": "input",
@@ -486,6 +503,7 @@ or human readable such as 10mb
 Enter 0 for no minimum
 """,
                 "default": str(data.get_filesize_min()),
+                "filter": lambda x: int(parse_size(x)) if x != "None" else 0,
             },
             {
                 "type": "checkbox",
@@ -498,7 +516,7 @@ Enter 0 for no minimum
                             value=x,
                             enabled=x.capitalize() in set(data.get_filter()),
                         ),
-                        constants.getattr("FILTER_DEFAULT"),
+                        of_env.getattr("FILTER_DEFAULT"),
                     )
                 ),
                 "validate": prompt_validators.emptyListValidator(),
@@ -522,7 +540,7 @@ def advanced_config() -> dict:
                 "name": "dynamic-mode-default",
                 "message": "What would you like to use for dynamic rules",
                 "default": data.get_dynamic(),
-                "choices": constants.DYNAMIC_OPTIONS,
+                "choices": const.DYNAMIC_OPTIONS,
             },
             {
                 "type": "list",
@@ -531,33 +549,12 @@ def advanced_config() -> dict:
                 "default": data.cache_mode_helper(),
                 "choices": ["sqlite", "json", "disabled", "api_disabled"],
             },
-            # value because of legacy config values
-            {
-                "type": "input",
-                "name": "custom",
-                "multiline": True,
-                "message": "edit custom value:\n",
-                "option_instruction": "This is a helper value for remapping placeholder values",
-                "default": (
-                    json.dumps(custom.get_custom())
-                    if not isinstance(custom.get_custom(), str)
-                    else custom.get_custom() or ""
-                ),
-            },
             {
                 "type": "list",
                 "name": "downloadbars",
                 "message": "show download progress bars\nThis can have a negative effect on performance with lower threads",
                 "default": data.get_show_downloadprogress(),
                 "choices": [Choice(True, "Yes"), Choice(False, "No")],
-            },
-            {
-                "type": "list",
-                "name": "code-execution",
-                "message": "Enable Code Execution:",
-                "choices": [Choice(True, "Yes"), Choice(False, "No", enabled=True)],
-                "default": data.get_allow_code_execution(),
-                "option_instruction": "Allows for use of eval to evaluate custom values in placeholders",
             },
             {
                 "type": "filepath",
@@ -628,11 +625,10 @@ Expired user list can be called expired or ofscraper.expired
 List are case insensitive\n
 """,
             },
-
-                        {
+            {
                 "type": "number",
                 "name": "logs_expire_time",
-                "float_allowed":True,
+                "float_allowed": True,
                 "message": "Logs expire Time",
                 "default": data.get_logs_expire() or 0,
                 "option_instruction": """
@@ -650,6 +646,12 @@ If value is 'None' or '0' no logs will be touched
                     Choice(False, "Hash Files, but do not remove"),
                     Choice(None, "Don't Hash Files"),
                 ],
+            },
+            {
+                "type": "input",
+                "name": "env_files",
+                "message": "Files used to import env variables",
+                "default": data.get_env_files(),
             },
         ],
         altx=funct,
@@ -776,10 +778,13 @@ def manual_config_prompt(configText) -> str:
     return questions[name]
 
 
-def retry_user_scan():
+def retry_user_scan(no_models=False):
+    choices = [Choice(True, "Yes"), Choice(False, "No")]
+    if no_models:
+        choices = [Choice(True, "Yes"), Choice(False, "Quit")]
     answer = promptClasses.getChecklistSelection(
         message="Rescan account for users",
-        choices=[Choice(True, "Yes"), Choice(False, "No")],
+        choices=choices,
     )
 
     return answer

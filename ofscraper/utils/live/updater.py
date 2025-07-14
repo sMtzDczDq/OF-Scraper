@@ -1,236 +1,109 @@
-import ofscraper.utils.constants as constants
-import ofscraper.utils.settings as settings
 from ofscraper.utils.live.progress import (
     activity_counter,
-    activity_progress,
+    activity_desc,
     api_job_progress,
     api_overall_progress,
-    download_job_progress,
-    download_overall_progress,
-    metadata_overall_progress,
-    like_overall_progress,
     userlist_job_progress,
     userlist_overall_progress,
+    metadata_overall_progress,
+    download_job_progress,
+    download_overall_progress,
+    like_overall_progress,
 )
 from ofscraper.utils.live.tasks import (
     get_activity_counter_task,
     get_activity_task,
-    get_user_first_task,
+    get_user_task,
 )
-import ofscraper.main.manager as manager
 
 
-def update_activity_task(**kwargs):
-    activity_progress.update(get_activity_task(), **kwargs)
+from rich.progress import Progress, TaskID
 
 
-def increment_activity_count(total=None, visible=True, advance=1, **kwargs):
-    total = (
-        total if total is not None else manager.Manager.model_manager.get_num_selected()
-    )
-    activity_counter.update(
-        get_activity_counter_task(),
-        advance=advance,
-        total=total,
-        visible=visible,
-        **kwargs
-    )
+class ProgressManager:
+    def __init__(self, job_progress: Progress, overall_progress: Progress):
+        self.job = job_progress
+        self.overall = overall_progress
 
+    def add_job_task(self, *args, **kwargs) -> TaskID:
+        return self.job.add_task(*args, **kwargs)
 
-def update_activity_count(visible=True, total=False, **kwargs):
-    total = (
-        total
-        if total is not False
-        else manager.Manager.model_manager.get_num_selected()
-    )
-    activity_counter.update(
-        get_activity_counter_task(), visible=visible, total=total, **kwargs
-    )
+    def update_job_task(self, task_id: TaskID, *args, **kwargs):
+        self.job.update(task_id, *args, **kwargs)
 
-
-def increment_user_activity(total=None, visible=True, advance=1, **kwargs):
-    total = (
-        total if total is not None else manager.Manager.model_manager.get_num_selected()
-    )
-    activity_counter.update(
-        get_user_first_task(), total=total, visible=visible, advance=advance, **kwargs
-    )
-
-
-def update_user_activity(visible=True, total=None, **kwargs):
-    total = (
-        total if total is not None else manager.Manager.model_manager.get_num_selected()
-    )
-    activity_counter.update(
-        get_user_first_task(), visible=visible, total=total, **kwargs
-    )
-
-
-def add_api_job_task(*args, **kwargs):
-    return api_job_progress.add_task(*args, **kwargs)
-
-
-def add_api_task(*args, **kwargs):
-    return api_overall_progress.add_task(*args, **kwargs)
-
-
-def remove_api_job_task(task):
-    if task is None:
-        return
-    try:
-        api_job_progress.remove_task(task)
-    except KeyError:
-        pass
-
-
-def update_api_task(*args, **kwargs):
-    return api_overall_progress.update(*args, **kwargs)
-
-
-def remove_api_task(task):
-    if task is None:
-        return
-    try:
-        api_overall_progress.remove_task(task)
-    except KeyError:
-        pass
-
-
-def add_userlist_task(*args, **kwargs):
-    return userlist_overall_progress.add_task(*args, **kwargs)
-
-
-def add_userlist_job_task(*args, **kwargs):
-    return userlist_job_progress.add_task(*args, **kwargs)
-
-
-def update_userlist_task(task, *args, **kwargs):
-    if task is None:
-        return
-    try:
-        userlist_overall_progress.update(task, *args, **kwargs)
-    except KeyError:
-        pass
-
-
-def remove_userlist_task(task):
-    if task is None:
-        return
-    try:
-        userlist_overall_progress.remove_task(task)
-    except KeyError:
-        pass
-
-
-def remove_userlist_job_task(task):
-    if task is None:
-        return
-    try:
-        userlist_overall_progress.remove_task(task)
-    except KeyError:
-        pass
-
-
-
-def add_download_job_task(*args, **kwargs):
-    max_visible = constants.getattr("MAX_PROGRESS_BARS")
-    visible = (
-        settings.get_settings().download_bars
-        and len(download_job_progress.tasks) < max_visible
-    )
-    task = download_job_progress.add_task(*args, visible=visible, **kwargs)
-    return task
-
-
-
-def add_download_task(*args, **kwargs):
-    return download_overall_progress.add_task(*args, start=True, **kwargs)
-
-
-def start_download_job_task(*args, **kwargs):
-    download_job_progress.start_task(*args, **kwargs)
-
-
-def update_download_task(*args, **kwargs):
-    return download_overall_progress.update(*args, **kwargs)
-
-
-def update_download_job_task(*args, **kwargs):
-    download_job_progress.update(*args, **kwargs)
-
-
-def remove_download_job_task(task):
-    min_add_visible = constants.getattr("MIN_ADD_PROGRESS_BARS")
-
-    if task is None:
-        return
-    try:
-        download_job_progress.remove_task(task)
-        #whether to try to make hidden bar visible
-        if not settings.get_settings().download_bars:
+    def remove_job_task(self, task_id: TaskID):
+        if task_id is None:
             return
-        if (
-            len(list(filter(lambda x: x.visible, download_job_progress.tasks)))
-            >= min_add_visible
-        ):
+        try:
+            self.job.remove_task(task_id)
+        except KeyError:
+            pass
+
+    def add_overall_task(self, *args, **kwargs) -> TaskID:
+        return self.overall.add_task(*args, **kwargs)
+
+    def update_overall_task(self, task_id: TaskID, *args, **kwargs):
+        self.overall.update(task_id, *args, **kwargs)
+
+    def remove_overall_task(self, task_id: TaskID):
+        if task_id is None:
             return
-        hidden=list(filter(lambda x: x.visible is False, download_job_progress.tasks))
-        if not hidden:
-            return
-        update_download_job_task(hidden[0],visible=True)
+        try:
+            self.overall.remove_task(task_id)
+        except KeyError:
+            pass
 
-    except KeyError:
-        pass
-
-
-def remove_download_task(task):
-    if task is None:
-        return
-    try:
-        download_overall_progress.remove_task(task)
-    except KeyError:
-        pass
+    def clear(self):
+        """Hides all tasks managed by this manager."""
+        if self.job:
+            for task in self.job.tasks:
+                self.job.update(task.id, visible=False)
+        if self.overall:
+            for task in self.overall.tasks:
+                self.overall.update(task.id, visible=False)
 
 
-# metadata
-def add_metadata_task(*args, **kwargs):
-    return metadata_overall_progress.add_task(*args, start=True, **kwargs)
+class ActivityManager:
+    """Manages the unique activity description and counter progress bars."""
+
+    def __init__(self, desc, counter, get_desc_id, get_counter_id, get_user_id):
+        self.desc = desc
+        self.counter = counter
+        self.get_desc_id = get_desc_id
+        self.get_counter_id = get_counter_id
+        self.get_user_id = get_user_id
+
+    def update_task(self, visible=True, **kwargs):
+        """Updates the main activity description text."""
+        self.desc.update(self.get_desc_id(), visible=visible, **kwargs)
+
+    def update_overall(self, visible=True, **kwargs):
+        """Updates the 'overall' progress bar (description, progress, total, etc.)."""
+
+        self.counter.update(self.get_counter_id(), visible=visible, **kwargs)
+
+    def update_user(self, visible=True, **kwargs):
+        """Updates the 'user-specific' progress bar (description, progress, etc.)."""
+        self.counter.update(self.get_user_id(), visible=visible, **kwargs)
+
+    def get_description(self) -> str | None:
+        """Gets the current description of the main activity task."""
+        task_id = self.get_desc_id()
+        # Find the full task object by its ID
+        task = next((t for t in self.desc.tasks if t.id == task_id), None)
+        return task.description if task else None
 
 
-def update_metadata_task(*args, **kwargs):
-    metadata_overall_progress.update(*args, **kwargs)
+activity = ActivityManager(
+    desc=activity_desc,
+    counter=activity_counter,
+    get_desc_id=get_activity_task,
+    get_counter_id=get_activity_counter_task,
+    get_user_id=get_user_task,
+)
 
-
-def remove_metadata_task(task):
-    if task is None:
-        return
-    try:
-        metadata_overall_progress.remove_task(task)
-    except KeyError:
-        pass
-
-
-# like
-def add_like_task(*args, **kwargs):
-    return like_overall_progress.add_task(*args, **kwargs)
-
-
-def get_like_task(task):
-    return like_overall_progress.tasks[task]
-
-
-def increment_like_task(*args, advance=1, **kwargs):
-    like_overall_progress.update(*args, advance=advance, **kwargs)
-
-
-def update_like_task(*args, **kwargs):
-    like_overall_progress.update(*args, **kwargs)
-
-
-def remove_like_task(task):
-    if task is None:
-        return
-    try:
-        like_overall_progress.remove_task(task)
-    except KeyError:
-        pass
+api = ProgressManager(api_job_progress, api_overall_progress)
+userlist = ProgressManager(userlist_job_progress, userlist_overall_progress)
+metadata = ProgressManager(None, metadata_overall_progress)
+download = ProgressManager(download_job_progress, download_overall_progress)
+like = ProgressManager(None, like_overall_progress)

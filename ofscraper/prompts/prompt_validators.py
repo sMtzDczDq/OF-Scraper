@@ -10,9 +10,9 @@ from pathvalidate import validate_filename, validate_filepath
 from prompt_toolkit.validation import ValidationError, Validator
 
 import ofscraper.classes.placeholder as placeholders
-import ofscraper.utils.args.accessors.read as read_args
 import ofscraper.utils.profiles.data as profiles_data
 import ofscraper.utils.profiles.tools as profiles_tools
+import ofscraper.utils.settings as settings
 
 
 class MultiValidator(Validator):
@@ -248,15 +248,14 @@ def datevalidator():
     return validatorCallableHelper(
         callable,
         """
-        Date is invalid -> https://arrow.readthedocs.io/en/latest/guide.html#supported-tokens""",
+        Date is invalid -> Supported Formats: YYYY-MM-DD, YYYY-M-DD, YYYY-M-D, YYYY/MM/DD, YYYY/M/DD, YYYY/M/D, YYYY.MM.DD, YYYY.M.DD, YYYY.M.D, YYYYMMDD, YYYY-DDDD, YYYYDDDD, YYYY-MM, YYYY/MM, YYYY.MM, YYYY, W.""",
     )
-
 
 
 def like_area_validator_posts():
     def callable(x):
-        args = read_args.retriveArgs()
-        if "like" not in args.action and "unlike" not in args.action:
+        args = settings.get_args()
+        if "like" not in args.actions and "unlike" not in args.actions:
             return True
         elif len(args.like_area) > 0:
             return True

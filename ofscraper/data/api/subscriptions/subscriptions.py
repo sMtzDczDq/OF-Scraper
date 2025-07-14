@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import asyncio
@@ -18,12 +18,11 @@ import traceback
 from rich.console import Console
 
 import ofscraper.data.api.subscriptions.common as common
-import ofscraper.main.manager as manager
-import ofscraper.utils.constants as constants
+import ofscraper.managers.manager as manager
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.live.screens as progress_utils
 from ofscraper.utils.context.run_async import run
-from ofscraper.utils.live.updater import add_userlist_task, remove_userlist_task
-
+from ofscraper.utils.live.updater import userlist
 
 log = logging.getLogger("shared")
 console = Console()
@@ -32,47 +31,81 @@ console = Console()
 @run
 async def get_subscriptions(subscribe_count, account="active"):
 
-    task1 = add_userlist_task(
+    task1 = userlist.add_overall_task(
         f"Getting your {account} subscriptions (this may take awhile)..."
     )
-    async with manager.Manager.aget_ofsession(
-        sem_count=constants.getattr("SUBSCRIPTION_SEMS"),
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
     ) as c:
         if account == "active":
             out = await activeHelper(subscribe_count, c)
         else:
             out = await expiredHelper(subscribe_count, c)
-    remove_userlist_task(task1)
+    userlist.remove_overall_task(task1)
     log.debug(f"Total {account} subscriptions found {len(out)}")
     return out
+
+
+@run
+async def get_all_subscriptions(subscribe_count, account="active"):
+    if account == "active":
+        return await get_all_activive_subscriptions(subscribe_count)
+    else:
+        return await get_all_expired_subscriptions(subscribe_count)
+
+
+async def get_all_activive_subscriptions(subscribe_count):
+    funct = scrape_subscriptions_active
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
+    ) as c:
+        tasks = [
+            asyncio.create_task(funct(c, offset))
+            for offset in range(0, subscribe_count + 1, 10)
+        ]
+        tasks.extend([asyncio.create_task(funct(c, subscribe_count + 1, recur=True))])
+        return await process_task(tasks)
+
+
+async def get_all_expired_subscriptions(subscribe_count):
+    funct = scrape_subscriptions_disabled
+    async with manager.Manager.aget_subscription_session(
+        sem_count=of_env.getattr("SUBSCRIPTION_SEMS"),
+    ) as c:
+        tasks = [
+            asyncio.create_task(funct(c, offset))
+            for offset in range(0, subscribe_count + 1, 10)
+        ]
+        tasks.extend([asyncio.create_task(funct(c, subscribe_count + 1, recur=True))])
+        return await process_task(tasks)
 
 
 async def activeHelper(subscribe_count, c):
     if any(
         x in common.get_black_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_RESERVED_LIST"),
-            constants.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
         ]
     ) or any(
         x in common.get_black_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_ACTIVE_LIST"),
-            constants.getattr("OFSCRAPER_ACTIVE_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_ACTIVE_LIST"),
+            of_env.getattr("OFSCRAPER_ACTIVE_LIST_ALT"),
         ]
     ):
         return []
     if all(
         x not in common.get_user_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_RESERVED_LIST"),
-            constants.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
         ]
     ) and all(
         x not in common.get_user_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_ACTIVE_LIST"),
-            constants.getattr("OFSCRAPER_ACTIVE_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_ACTIVE_LIST"),
+            of_env.getattr("OFSCRAPER_ACTIVE_LIST_ALT"),
         ]
     ):
         return []
@@ -90,28 +123,28 @@ async def expiredHelper(subscribe_count, c):
     if any(
         x in common.get_black_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_RESERVED_LIST"),
-            constants.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
         ]
     ) or any(
         x in common.get_black_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_EXPIRED_LIST"),
-            constants.getattr("OFSCRAPER_EXPIRED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_EXPIRED_LIST"),
+            of_env.getattr("OFSCRAPER_EXPIRED_LIST_ALT"),
         ]
     ):
         return []
     if all(
         x not in common.get_user_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_RESERVED_LIST"),
-            constants.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST"),
+            of_env.getattr("OFSCRAPER_RESERVED_LIST_ALT"),
         ]
     ) and all(
         x not in common.get_user_list_helper()
         for x in [
-            constants.getattr("OFSCRAPER_EXPIRED_LIST"),
-            constants.getattr("OFSCRAPER_EXPIRED_LIST_ALT"),
+            of_env.getattr("OFSCRAPER_EXPIRED_LIST"),
+            of_env.getattr("OFSCRAPER_EXPIRED_LIST_ALT"),
         ]
     ):
         return []
@@ -150,9 +183,9 @@ async def process_task(tasks):
 
 
 async def scrape_subscriptions_active(c, offset=0, num=0, recur=False) -> list:
-    with progress_utils.setup_subscription_progress_live():
+    with progress_utils.setup_live("user_list"):
         new_tasks = []
-        url = constants.getattr("subscriptionsActiveEP").format(offset)
+        url = of_env.getattr("subscriptionsActiveEP").format(offset)
         try:
             log.debug(f"usernames active offset {offset}")
             async with c.requests_async(url=url) as r:
@@ -185,9 +218,9 @@ async def scrape_subscriptions_active(c, offset=0, num=0, recur=False) -> list:
 
 
 async def scrape_subscriptions_disabled(c, offset=0, num=0, recur=False) -> list:
-    with progress_utils.setup_subscription_progress_live():
+    with progress_utils.setup_live("user_list"):
         new_tasks = []
-        url = constants.getattr("subscriptionsExpiredEP").format(offset)
+        url = of_env.getattr("subscriptionsExpiredEP").format(offset)
         try:
             log.debug(f"usernames offset expired {offset}")
             async with c.requests_async(url=url) as r:

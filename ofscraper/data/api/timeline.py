@@ -1,10 +1,10 @@
 r"""
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
 """
@@ -17,7 +17,7 @@ import traceback
 import arrow
 
 import ofscraper.data.api.common.logs.strings as common_logs
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.live.updater as progress_utils
 import ofscraper.utils.settings as settings
 from ofscraper.data.api.common.after import get_after_pre_checks
@@ -46,13 +46,13 @@ async def get_timeline_posts(model_id, username, c=None, post_id=None):
     after = await get_after(model_id, username)
     post_id = post_id or []
     time_log(username, after)
-    if len(post_id) == 0 or len(post_id) > constants.getattr(
+    if len(post_id) == 0 or len(post_id) > of_env.getattr(
         "MAX_TIMELINE_INDIVIDUAL_SEARCH"
     ):
         splitArrays = await get_split_array(model_id, username, after)
         tasks = get_tasks(splitArrays, c, model_id, after)
         data = await process_tasks_batch(tasks)
-    elif len(post_id) <= constants.getattr("MAX_TIMELINE_INDIVIDUAL_SEARCH"):
+    elif len(post_id) <= of_env.getattr("MAX_TIMELINE_INDIVIDUAL_SEARCH"):
         data = process_individual()
 
     update_check(data, model_id, after, API)
@@ -63,7 +63,7 @@ async def process_tasks_batch(tasks):
     responseArray = []
     page_count = 0
 
-    page_task = progress_utils.add_api_task(
+    page_task = progress_utils.api.add_overall_task(
         f" Timeline Content Pages Progress: {page_count}", visible=True
     )
     seen = set()
@@ -74,7 +74,7 @@ async def process_tasks_batch(tasks):
                 result, new_tasks_batch = await task
                 new_tasks.extend(new_tasks_batch)
                 page_count = page_count + 1
-                progress_utils.update_api_task(
+                progress_utils.api.update_overall_task(
                     page_task,
                     description=f"Timeline Content Pages Progress: {page_count}",
                 )
@@ -94,7 +94,7 @@ async def process_tasks_batch(tasks):
                 continue
         tasks = new_tasks
 
-    progress_utils.remove_api_task(page_task)
+    progress_utils.api.remove_overall_task(page_task)
     log.debug(
         f"{common_logs.FINAL_IDS.format('Timeline')} {list(map(lambda x:x['id'],responseArray))}"
     )
@@ -130,8 +130,8 @@ async def get_split_array(model_id, username, after):
     if len(oldtimeline) == 0:
         return []
     min_posts = max(
-        len(oldtimeline) // constants.getattr("REASONABLE_MAX_PAGE"),
-        constants.getattr("MIN_PAGE_POST_COUNT"),
+        len(oldtimeline) // of_env.getattr("REASONABLE_MAX_PAGE"),
+        of_env.getattr("MIN_PAGE_POST_COUNT"),
     )
     postsDataArray = sorted(oldtimeline, key=lambda x: arrow.get(x["created_at"]))
     filteredArray = list(filter(lambda x: bool(x["created_at"]), postsDataArray))
@@ -273,20 +273,20 @@ async def scrape_timeline_posts(
     timestamp = float(timestamp) - 100 if timestamp and offset else timestamp
 
     url = (
-        constants.getattr("timelineNextEP").format(model_id, str(timestamp))
+        of_env.getattr("timelineNextEP").format(model_id, str(timestamp))
         if timestamp
-        else constants.getattr("timelineEP").format(model_id)
+        else of_env.getattr("timelineEP").format(model_id)
     )
     log.debug(url)
     new_tasks = []
     task = None
 
     try:
-        task = progress_utils.add_api_job_task(
-            f"[Timeline] Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
+        task = progress_utils.api.add_job_task(
+            f"[Timeline] Timestamp -> {arrow.get(math.trunc(float(timestamp))).format(of_env.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}",
             visible=True,
         )
-        log_id = f"timestamp:{arrow.get(math.trunc(float(timestamp))).format(constants.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}"
+        log_id = f"timestamp:{arrow.get(math.trunc(float(timestamp))).format(of_env.getattr('API_DATE_FORMAT')) if timestamp is not None  else 'initial'}"
 
         log.debug(
             f"trying to access {API.lower()} posts with url:{url} timestamp:{timestamp if timestamp is not None else 'initial'}"
@@ -304,10 +304,10 @@ async def scrape_timeline_posts(
 
             log.debug(f"{log_id} -> number of post found {len(posts)}")
             log.debug(
-                f"{log_id} -> first date {arrow.get(posts[0].get('createdAt') or posts[0].get('postedAt')).format(constants.getattr('API_DATE_FORMAT'))}"
+                f"{log_id} -> first date {arrow.get(posts[0].get('createdAt') or posts[0].get('postedAt')).format(of_env.getattr('API_DATE_FORMAT'))}"
             )
             log.debug(
-                f"{log_id} -> last date {arrow.get(posts[-1].get('createdAt') or posts[-1].get('postedAt')).format(constants.getattr('API_DATE_FORMAT'))}"
+                f"{log_id} -> last date {arrow.get(posts[-1].get('createdAt') or posts[-1].get('postedAt')).format(of_env.getattr('API_DATE_FORMAT'))}"
             )
             log.debug(
                 f"{log_id} -> found postids {list(map(lambda x:x.get('id'),posts))}"
@@ -343,13 +343,13 @@ async def scrape_timeline_posts(
         log.traceback_(traceback.format_exc())
         raise E
     finally:
-        progress_utils.remove_api_job_task(task)
+        progress_utils.api.remove_job_task(task)
 
 
 def time_log(username, after):
     log.info(
         f"""
-Setting timeline scan range for {username} from {arrow.get(after).format(constants.getattr('API_DATE_FORMAT'))} to {arrow.get(settings.get_settings().before or arrow.now()).format((constants.getattr('API_DATE_FORMAT')))}
+Setting timeline scan range for {username} from {arrow.get(after).format(of_env.getattr('API_DATE_FORMAT'))} to {arrow.get(settings.get_settings().before or arrow.now()).format((of_env.getattr('API_DATE_FORMAT')))}
 [yellow]Hint: append ' --after 2000' to command to force scan of all timeline posts + download of new files only[/yellow]
 [yellow]Hint: append ' --after 2000 --force-all' to command to force scan of all timeline posts + download/re-download of all files[/yellow]
 

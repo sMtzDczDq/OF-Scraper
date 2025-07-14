@@ -39,16 +39,6 @@ def addtrace():
     logging.trace = logToRoot(level)
 
 
-def updateSenstiveDict(word, replacement):
-    global senstiveDict
-    senstiveDict[word] = replacement
-
-
-def getSenstiveDict():
-    global senstiveDict
-    return senstiveDict
-
-
 def getLevel(input_):
     """
     CRITICAL 50
@@ -75,4 +65,3 @@ def getNumber(input_):
     if isinstance(input_, str):
         return logging.getLevelName(input_)
     return input_
-

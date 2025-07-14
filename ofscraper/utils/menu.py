@@ -9,7 +9,7 @@ import ofscraper.utils.console as console
 import ofscraper.utils.merge as merge
 import ofscraper.utils.profiles.manage as profiles_manage
 import ofscraper.utils.profiles.tools as profile_tools
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 
 
 log = logging.getLogger("shared")
@@ -28,6 +28,7 @@ def get_count():
 
 def main_menu_action():
     from ofscraper.commands.scraper.scraper import scraperManager
+
     global count
     log.debug("[bold deep_sky_blue2] Running Prompt Menu Mode[/bold deep_sky_blue2]")
     scapingManager = scraperManager()
@@ -136,4 +137,4 @@ def reset_menu_helper():
         actions.remove_download_area()
     elif reset == "Like":
         actions.remove_like_area()
-    manager.Manager.model_manager.getselected_usernames(reset=True)
+    manager.Manager.model_manager.prepare_scraper_activity()

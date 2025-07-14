@@ -3,34 +3,51 @@ import ofscraper.data.api.me as me
 import ofscraper.data.api.subscriptions.individual as individual
 import ofscraper.data.api.subscriptions.lists as lists
 import ofscraper.data.api.subscriptions.subscriptions as subscriptions
-import ofscraper.data.models.models as models
+import ofscraper.classes.of.models as models
 import ofscraper.prompts.prompts as prompts
 import ofscraper.utils.console as console
 import ofscraper.utils.me as me_util
-from ofscraper.utils.live.updater import update_activity_task
+from ofscraper.utils.live.updater import activity
 import ofscraper.utils.settings as settings
 
 
-async def get_models() -> list:
+async def get_models(all_main_models: bool = False) -> list:
     """
-    Get user's subscriptions in form of a list.
+    Get user's subscriptions. Can be forced to fetch all models.
     """
-    update_activity_task(description="Getting subscriptions")
+    activity.update_task(description="Getting subscriptions")
+    # if the anon flag is on force individual
     if settings.get_settings().anon:
         return await get_via_individual()
+    # actions for if anon flag is falses
     count = get_sub_count()
+    if all_main_models:
+        return await get_via_main_list(count)
+    # --- Existing logic for when all_main_models is False ---
     if not bool(settings.get_settings().usernames):
         return await get_via_list(count)
     elif "ALL" in settings.get_settings().usernames:
         return await get_via_list(count)
-    elif settings.get_settings().username_search=="indvidual":
+    elif settings.get_settings().username_search == "indvidual":
         return await get_via_individual()
-    elif settings.get_settings().username_search=="list":
+    elif settings.get_settings().username_search == "list":
         return await get_via_list(count)
     elif (sum(count) // 12) >= len(settings.get_settings().usernames):
         return await get_via_individual()
     else:
         return await get_via_list(count)
+
+
+async def get_via_main_list(count):
+    out = []
+    active_subscriptions = await subscriptions.get_all_subscriptions(count[0])
+    expired_subscriptions = await subscriptions.get_all_subscriptions(
+        count[1], account="expired"
+    )
+    out.extend(active_subscriptions)
+    out.extend(expired_subscriptions)
+    models_objects = list(map(lambda x: models.Model(x), out))
+    return models_objects
 
 
 async def get_via_list(count):
@@ -65,12 +82,12 @@ async def get_via_individual():
     return models_objects
 
 
-def get_selected_model(parsed_subscriptions: list) -> tuple:
+def get_selected_model(parsed_subscriptions: list,existing_models:list) -> tuple:
     """
     Prints user's subscriptions to console and accepts input from user corresponding
     to the model(s) whose content they would like to scrape.
     """
-    return prompts.model_selector(parsed_subscriptions)
+    return prompts.model_selector(parsed_subscriptions,existing_models)
 
 
 def get_sub_count():

@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import traceback
@@ -17,8 +17,6 @@ import pathlib
 from functools import partial
 
 import ofscraper.classes.placeholder as placeholder
-import ofscraper.commands.scraper.actions.utils.general as common
-import ofscraper.commands.scraper.actions.utils.paths.media as media
 import ofscraper.utils.cache as cache
 import ofscraper.utils.hash as hash
 import ofscraper.utils.settings as settings
@@ -28,8 +26,8 @@ from ofscraper.db.operations_.media import (
 )
 from ofscraper.commands.scraper.actions.utils.retries import get_download_retries
 from ofscraper.commands.scraper.actions.utils.params import get_alt_params
-from ofscraper.classes.sessionmanager.sessionmanager import FORCED_NEW, SIGN
-import ofscraper.utils.constants as constants
+from ofscraper.managers.sessionmanager.sessionmanager import FORCED_NEW, SIGN
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.commands.scraper.actions.utils.globals as common_globals
 from ofscraper.commands.scraper.actions.utils.log import get_medialog
 
@@ -53,7 +51,7 @@ class MetaDataManager:
         )
         placeholderObj = placeholderObj or await self._placeholderObjHelper(c, ele)
         await placeholderObj.init(create=False)
-        common.add_additional_data(placeholderObj, ele)
+        ele.add_filepath(placeholderObj.trunicated_filepath)
         effected = None
         if ele.id:
             prevData = (
@@ -126,7 +124,7 @@ class MetaDataManager:
         return str(placeholderObj.trunicated_filedir)
 
     def _metadata_hash_helper(self, placeholderObj, prevData, ele):
-        if not settings.get_hash(mediatype=ele.mediatype):
+        if not settings.get_settings().hash:
             return prevData.get("hash")
         elif pathlib.Path(placeholderObj.trunicated_filepath).is_file():
             return hash.get_hash(
@@ -161,16 +159,14 @@ class MetaDataManager:
     async def _metadata_helper(self, c, ele):
         placeholderObj = None
         if not ele.url and not ele.mpd:
-            placeholderObj = placeholder.Placeholders(
-                ele, ext=media.content_type_missing(ele)
-            )
+            placeholderObj = placeholder.Placeholders(ele, ext=ele.content_type)
             return placeholderObj
         else:
             url = ele.url or ele.mpd
             params = get_alt_params(ele) if ele.mpd else None
             actions = (
                 [FORCED_NEW, SIGN]
-                if ele.mpd and constants.getattr("ALT_FORCE_KEY")
+                if ele.mpd and of_env.getattr("ALT_FORCE_KEY")
                 else []
             )
             common_globals.attempt.set(common_globals.attempt.get() + 1)
@@ -181,9 +177,9 @@ class MetaDataManager:
                 url=url, headers=None, params=params, actions=actions
             ) as r:
                 headers = r.headers
-                content_type = headers.get("content-type").split("/")[
-                    -1
-                ] or media.content_type_missing(ele)
+                content_type = (
+                    headers.get("content-type").split("/")[-1] or ele.content_type
+                )
                 # request fail if not read
                 async for _ in r.iter_chunked(1024 * 1024 * 30):
                     pass
@@ -195,9 +191,9 @@ class MetaDataManager:
             common_globals.thread, partial(cache.get, f"{ele.id}_headers")
         )
         if download_data:
-            content_type = download_data.get("content-type").split("/")[
-                -1
-            ] or media.content_type_missing(ele)
+            content_type = (
+                download_data.get("content-type").split("/")[-1] or ele.content_type
+            )
             return placeholder.Placeholders(ele, content_type)
         # final fallback
         return await self._metadata_helper(c, ele)

@@ -174,30 +174,30 @@ class InputApp(App):
         # sort
         if key == "number":
             self.query_one("#data_table_hidden").sort(
-                "number", key=lambda x: int(x.plain), reverse=self._reverse
+                key, key=lambda x: int(x.plain), reverse=self._reverse
             )
         elif key == "username":
             self.query_one("#data_table_hidden").sort(
-                "username", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
         elif key == "downloaded":
             self.query_one("#data_table_hidden").sort(
-                "downloaded", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
 
         elif key == "unlocked":
             self.query_one("#data_table_hidden").sort(
-                "unlocked", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
         elif key == "other_posts_with_media":
             self.query_one("#data_table_hidden").sort(
-                "other_posts_with_media",
+                key,
                 key=lambda x: len(re.findall(r"\d+", x.plain)),
                 reverse=self._reverse,
             )
         elif key == "length":
             self.query_one("#data_table_hidden").sort(
-                "length",
+                key,
                 key=lambda x: (
                     arrow.get(x.plain, "h:m:s")
                     if x.plain not in {"N/A", "N\A"}
@@ -207,40 +207,40 @@ class InputApp(App):
             )
         elif key == "mediatype":
             self.query_one("#data_table_hidden").sort(
-                "mediatype", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
         elif key == "post_date":
             self.query_one("#data_table_hidden").sort(
-                "post_date", key=lambda x: arrow.get(x.plain), reverse=self._reverse
+                key, key=lambda x: arrow.get(x.plain), reverse=self._reverse
             )
         elif key == "post_media_count":
             self.query_one("#data_table_hidden").sort(
-                "post_media_count", key=lambda x: int(x.plain), reverse=self._reverse
+                key, key=lambda x: int(x.plain), reverse=self._reverse
             )
 
         elif key == "responsetype":
             self.query_one("#data_table_hidden").sort(
-                "responsetype", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
 
         elif key == "price":
             self.query_one("#data_table_hidden").sort(
-                "price",
+                key,
                 key=lambda x: 0 if x.plain.lower() == "free" else float(x.plain),
                 reverse=self._reverse,
             )
 
         elif key == "post_id":
             self.query_one("#data_table_hidden").sort(
-                "post_id", key=lambda x: int(x.plain), reverse=self._reverse
+                key, key=lambda x: int(x.plain), reverse=self._reverse
             )
         elif key == "media_id":
             self.query_one("#data_table_hidden").sort(
-                "media_id", key=lambda x: int(x.plain), reverse=self._reverse
+                key, key=lambda x: int(x.plain), reverse=self._reverse
             )
         elif key == "text":
             self.query_one("#data_table_hidden").sort(
-                "text", key=lambda x: x.plain, reverse=self._reverse
+                key, key=lambda x: x.plain, reverse=self._reverse
             )
 
     def set_reverse(self, key=None):
@@ -265,6 +265,7 @@ class InputApp(App):
         self._set_downloaded()
         self._set_date_filter()
         self._set_download_type()
+        self._set_post_id()
         self._filter_runner()
 
     def set_filtered_rows(self):
@@ -272,7 +273,6 @@ class InputApp(App):
 
     def _filter_runner(self):
         with mutex:
-            filter_rows = None
             key_order = [
                 str(x.value)
                 for x in self.query_one("#data_table_hidden")._row_locations
@@ -359,6 +359,16 @@ class InputApp(App):
             self.query_one("#download_type").select_protected()
         if settings.get_settings().normal:
             self.query_one("#download_type").select_normal()
+
+    def _set_post_id(self):
+        if settings.get_settings().post_id:
+            self.query_one("#post_id").update_table_val(settings.get_settings().post_id)
+
+    def _set_media_id(self):
+        if settings.get_settings().media_id:
+            self.query_one("#post_id").update_table_val(
+                settings.get_settings().media_id
+            )
 
     # download_filters
     def init_download_filter(self):

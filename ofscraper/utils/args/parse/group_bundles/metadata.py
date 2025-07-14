@@ -1,7 +1,7 @@
 import cloup as click
 from click.exceptions import UsageError
 
-from ofscraper.const.constants import METADATA_OPTIONS
+from ofscraper.utils.const import METADATA_OPTIONS
 from ofscraper.utils.args.parse.groups.advanced_processing import (
     advanced_processing_options,
 )
@@ -32,6 +32,7 @@ from ofscraper.utils.args.parse.groups.post_filter import (
     post_sort_option,
     post_filter_options_desc,
     post_filter_options_help,
+    download_type_option,
 )
 
 
@@ -119,6 +120,7 @@ It also uses a new filename if one is available
         timed_only_option,
         mass_msg_option,
         post_id_filter_option,
+        download_type_option,
         help=post_filter_options_help,
     )
     @click.option_group(
@@ -142,7 +144,7 @@ It also uses a new filename if one is available
                 ctx.params["list"] = False
         elif not ctx.params["metadata"] and not ctx.params["scrape_paid"]:
             raise UsageError("'--scrape-paid' and/or --metadata is required")
-        ctx.params["action"] = []
+        ctx.params["actions"] = []
         return func(ctx, *args, **kwargs)
 
     hide_metadata_mode(wrapper)

@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import asyncio
@@ -18,25 +18,24 @@ from functools import partial
 
 import ofscraper.commands.scraper.actions.utils.globals as common_globals
 import ofscraper.utils.cache as cache
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.hash as hash
-from ofscraper.commands.scraper.actions.utils.paths.media import add_path
-
-
-def add_additional_data(placeholderObj, ele):
-    add_path(placeholderObj, ele)
 
 
 async def set_profile_cache_helper(ele):
-    if ele.postid and ele.responsetype == "profile":
+    if ele.post_id and ele.responsetype == "profile":
         await asyncio.get_event_loop().run_in_executor(
-            common_globals.thread, partial(cache.set, ele.postid, True)
+            common_globals.thread, partial(cache.set, ele.post_id, True)
         )
 
 
-async def get_hash(file_data, mediatype=None):
+async def get_hash(file_data):
     return await asyncio.get_event_loop().run_in_executor(
-        common_globals.thread, partial(hash.get_hash, file_data, mediatype=mediatype)
+        common_globals.thread,
+        partial(
+            hash.get_hash,
+            file_data,
+        ),
     )
 
 
@@ -54,7 +53,7 @@ def is_bad_url(url):
         return False
     elif len(match.groups()) < 1:
         return False
-    for ele in constants.getattr("BAD_URL_HOST"):
+    for ele in of_env.getattr("BAD_URL_HOST"):
         if re.search(ele, match.group(1)):
             return True
     return False

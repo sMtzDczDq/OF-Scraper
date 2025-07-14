@@ -1,14 +1,14 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import base64
@@ -23,9 +23,9 @@ import arrow
 
 import ofscraper.utils.auth.file as auth_file
 import ofscraper.utils.cache as cache
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.settings as settings
-import ofscraper.main.manager as manager
+import ofscraper.managers.manager as manager
 
 
 curr_auth = None
@@ -57,13 +57,13 @@ def get_request_auth():
         pass
     elif curr_auth and (
         arrow.now().float_timestamp - last_check.float_timestamp
-    ) < constants.getattr("THIRTY_EXPIRY"):
+    ) < of_env.getattr("THIRTY_EXPIRY"):
         return curr_auth
     dynamic = settings.get_settings().dynamic_rules
     auth = None
-    if constants.getattr("DYNAMIC_RULE") and dynamic in {"manual"}:
+    if of_env.getattr("DYNAMIC_RULE_MANUAL") and dynamic in {"manual"}:
         auth = get_request_auth_dynamic_rule_manual()
-    elif constants.getattr("DYNAMIC_GENERIC_URL") and dynamic in {"generic"}:
+    elif of_env.getattr("DYNAMIC_GENERIC_URL") and dynamic in {"generic"}:
         auth = get_request_auth_generic()
     elif (dynamic) in {"datawhores"}:
         auth = get_request_auth_datawhores()
@@ -75,28 +75,27 @@ def get_request_auth():
         auth = get_request_auth_digitalcriminals()
     if auth is None:
         auth = get_request_auth_datawhores()
-    cache.set("api_onlyfans_sign", auth, constants.getattr("THIRTY_EXPIRY"))
+    cache.set("api_onlyfans_sign", auth, of_env.getattr("THIRTY_EXPIRY"))
     curr_auth = auth
     last_check = arrow.now()
     return auth
 
 
 def get_request_auth_dynamic_rule_manual():
-    content = constants.getattr("DYNAMIC_RULE")
+    content = of_env.getattr("DYNAMIC_RULE_MANUAL")
     return request_auth_helper_picker(content)
 
 
 def get_request_auth_generic():
     logging.getLogger("shared").debug("getting new signature with generic")
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("DYNAMIC_GENERIC_URL"),
+            of_env.getattr("DYNAMIC_GENERIC_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -106,14 +105,13 @@ def get_request_auth_deviint():
     logging.getLogger("shared").debug("getting new signature with deviint")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("DEVIINT"),
+            of_env.getattr("DEVIINT_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -123,14 +121,13 @@ def get_request_auth_datawhores():
     logging.getLogger("shared").debug("getting new signature with datawhores")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("DATAWHORES_URL"),
+            of_env.getattr("DATAWHORES_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -140,14 +137,13 @@ def get_request_auth_xagler():
     logging.getLogger("shared").debug("getting new signature with xagler")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("XAGLER_URL"),
+            of_env.getattr("XAGLER_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -157,14 +153,13 @@ def get_request_auth_rafa():
     logging.getLogger("shared").debug("getting new signature with rafa")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("RAFA_URL"),
+            of_env.getattr("RAFA_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -174,14 +169,13 @@ def get_request_auth_riley():
     logging.getLogger("shared").debug("getting new signature with riley")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
 
         with c.requests(
-            constants.getattr("RILEY_URL"),
+            of_env.getattr("RILEY_URL"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -191,13 +185,12 @@ def get_request_auth_digitalcriminals():
     logging.getLogger("shared").debug("getting new signature with digitalcriminals")
 
     with manager.Manager.get_session(
-       
-        retries=constants.getattr("GIT_NUM_TRIES"),
-        wait_min=constants.getattr("GIT_MIN_WAIT"),
-        wait_max=constants.getattr("GIT_MAX_WAIT"),
+        retries=of_env.getattr("GIT_NUM_TRIES"),
+        wait_min=of_env.getattr("GIT_MIN_WAIT"),
+        wait_max=of_env.getattr("GIT_MAX_WAIT"),
     ) as c:
         with c.requests(
-            constants.getattr("DIGITALCRIMINALS"),
+            of_env.getattr("DIGITALCRIMINALS"),
         ) as r:
             content = r.json_()
             return request_auth_helper_picker(content)
@@ -236,11 +229,11 @@ def make_headers():
 def make_anon_headers():
     return {
         "accept": "application/json, text/plain, */*",
-        "app-token": constants.getattr("APP_TOKEN"),
+        "app-token": of_env.getattr("APP_TOKEN"),
         "x-bc": generate_xbc(),
         "referer": "https://onlyfans.com",
         "user-id": "0",
-        "user-agent": constants.getattr("ANON_USERAGENT"),
+        "user-agent": of_env.getattr("ANON_USERAGENT"),
     }
 
 
@@ -248,7 +241,7 @@ def make_login_headers():
     auth = auth_file.read_auth()
     headers = {
         "accept": "application/json, text/plain, */*",
-        "app-token": constants.getattr("APP_TOKEN"),
+        "app-token": of_env.getattr("APP_TOKEN"),
         "user-id": auth["auth_id"],
         "x-bc": auth["x-bc"],
         "referer": "https://onlyfans.com",
@@ -327,7 +320,7 @@ def generate_xbc():
         int(1e12 * random.random()),
         # Assuming you have a way to get the user agent string
         # Replace this with your logic to retrieve the user agent
-        constants.getattr("ANON_USERAGENT"),
+        of_env.getattr("ANON_USERAGENT"),
     ]
     msg = ".".join(
         [base64.b64encode(str(p).encode("utf-8")).decode("utf-8") for p in parts]

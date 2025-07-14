@@ -1,17 +1,19 @@
 r"""
-                                                             
- _______  _______         _______  _______  _______  _______  _______  _______  _______ 
+
+ _______  _______         _______  _______  _______  _______  _______  _______  _______
 (  ___  )(  ____ \       (  ____ \(  ____ \(  ____ )(  ___  )(  ____ )(  ____ \(  ____ )
 | (   ) || (    \/       | (    \/| (    \/| (    )|| (   ) || (    )|| (    \/| (    )|
 | |   | || (__     _____ | (_____ | |      | (____)|| (___) || (____)|| (__    | (____)|
 | |   | ||  __)   (_____)(_____  )| |      |     __)|  ___  ||  _____)|  __)   |     __)
-| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (   
+| |   | || (                   ) || |      | (\ (   | (   ) || (      | (      | (\ (
 | (___) || )             /\____) || (____/\| ) \ \__| )   ( || )      | (____/\| ) \ \__
 (_______)|/              \_______)(_______/|/   \__/|/     \||/       (_______/|/   \__/
-                                                                                      
+
 """
 
 import inspect
+import re
+from typing import Union
 
 import arrow
 from InquirerPy.base import Choice
@@ -24,25 +26,34 @@ import ofscraper.prompts.prompt_validators as prompt_validators
 import ofscraper.prompts.promptConvert as promptClasses
 import ofscraper.prompts.utils.model_helpers as modelHelpers
 import ofscraper.prompts.utils.prompt_helpers as prompt_helpers
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.settings as settings
 
 console = Console()
 models = None
 
 
-def model_selector(models_) -> bool:
-    global models
-    models = models_
+def model_selector(models: Union[dict | list],existing_models) -> bool:
     choices = list(
         map(
             lambda x: modelHelpers.model_selectorHelper(x[0], x[1]),
-            enumerate(models.values()),
+            enumerate(models),
         )
     )
+    selectedSet = set(
+                map(
+                    lambda x: x.name,existing_models
+                )
+    )
+    for model in choices:
+        name = re.search("^[0-9]+: ([^ ]+)", model.name).group(1)
+        if name in selectedSet:
+            model.enabled = True
+
 
     p = promptClasses.getFuzzySelection(
         choices=choices,
+
         transformer=lambda result: ",".join(map(lambda x: x.split(" ")[1], result)),
         multiselect=True,
         more_instruction=prompt_strings.MODEL_SELECT,
@@ -61,16 +72,16 @@ def model_selector(models_) -> bool:
 
 def decide_filters_menu() -> int:
     name = "modelList"
-    modelChoice = [*constants.getattr("modelPrompt")]
+    modelChoice = [*of_env.getattr("modelPrompt")]
     modelChoice.insert(4, Separator())
     modelChoice.insert(7, Separator())
-    modelChoice.insert(9, Separator())
+    modelChoice.insert(11, Separator())
     questions = promptClasses.batchConverter(
         *[
             {
                 "type": "list",
                 "name": name,
-                "message": "Make changes to model list",
+                "message": "Make changes to model list Filters/Sorting",
                 "choices": modelChoice,
             }
         ],
@@ -78,7 +89,7 @@ def decide_filters_menu() -> int:
         more_instructions=prompt_strings.FILTER_DETAILS,
     )
 
-    return constants.getattr("modelPrompt").get(questions[name])
+    return of_env.getattr("modelPrompt").get(questions[name])
 
 
 def modify_subtype_prompt(args):
@@ -128,7 +139,7 @@ def modify_active_prompt(args):
             {
                 "type": "list",
                 "name": "last-seen",
-                "default": None,
+                "default": settings.get_settings().last_seen,
                 "message": "Filter Accounts By whether the account by the visability of last seen",
                 "choices": [
                     Choice(True, "Last seen is present"),
@@ -144,10 +155,10 @@ def modify_active_prompt(args):
                 Otherwise must be in date format
                 """,
                 "validate": prompt_validators.datevalidator(),
-                "filter": lambda x: arrow.get(x or 0),
+                "filter": lambda x: arrow.get(x or 0).float_timestamp,
                 "default": (
                     arrow.get(settings.get_settings().last_seen_after).format(
-                        constants.getattr("PROMPT_DATE_FORMAT")
+                        of_env.getattr("PROMPT_DATE_FORMAT")
                     )
                     if settings.get_settings().last_seen_after
                     else ""
@@ -160,10 +171,10 @@ def modify_active_prompt(args):
                 "option_instruction": """enter 0 to disable this filter
                 Otherwise must be in date format""",
                 "validate": prompt_validators.datevalidator(),
-                "filter": lambda x: arrow.get(x or 0),
+                "filter": lambda x: arrow.get(x or 0).float_timestamp,
                 "default": (
                     arrow.get(settings.get_settings().last_seen_before).format(
-                        constants.getattr("PROMPT_DATE_FORMAT")
+                        of_env.getattr("PROMPT_DATE_FORMAT")
                     )
                     if settings.get_settings().last_seen_before
                     else ""
@@ -179,12 +190,10 @@ def modify_active_prompt(args):
 
     args.last_seen = answer["last-seen"]
     args.last_seen_after = (
-        answer["last-seen-after"] if answer["last-seen-after"] != arrow.get(0) else None
+        answer["last-seen-after"] if answer["last-seen-after"] != 0 else None
     )
     args.last_seen_before = (
-        answer["last-seen-before"]
-        if answer["last-seen-before"] != arrow.get(0)
-        else None
+        answer["last-seen-before"] if answer["last-seen-before"] != 0 else None
     )
     return args
 
@@ -204,7 +213,7 @@ def modify_promo_prompt(args):
             )
         )
 
-    free_trail = promptClasses.batchConverter(
+    free_trial = promptClasses.batchConverter(
         *[
             {
                 "type": "list",
@@ -223,7 +232,7 @@ def modify_promo_prompt(args):
             },
         ]
     )
-    if free_trail["free-trial"]:
+    if free_trial["free-trial"]:
         console.print(
             inspect.cleandoc(
                 """
@@ -281,7 +290,9 @@ def modify_promo_prompt(args):
                         True
                         if settings.get_settings()[promo_type]
                         else (
-                            False if settings.get_settings()[promo_type] is False else None
+                            False
+                            if settings.get_settings()[promo_type] is False
+                            else None
                         )
                     ),
                     "choices": [
@@ -293,7 +304,7 @@ def modify_promo_prompt(args):
             ]
         )
 
-    answer.update(free_trail)
+    answer.update(free_trial)
     args.free_trial = answer["free-trial"]
     args.update(promo)
 
@@ -410,7 +421,7 @@ def modify_list_prompt(args):
                 "type": "input",
                 "name": "user_list",
                 "message": "Change User List",
-                "default": ",".join(args.user_list or []),
+                "default": ",".join(args.userlist or []),
                 "multiline": True,
                 "filter": lambda x: prompt_helpers.user_list(x),
                 "option_instruction": prompt_helpers.get_list_details(True),
@@ -419,15 +430,15 @@ def modify_list_prompt(args):
                 "type": "input",
                 "name": "black_list",
                 "message": "Change Black List",
-                "default": ",".join(args.black_list or []),
+                "default": ",".join(args.blacklist or []),
                 "multiline": True,
                 "filter": lambda x: prompt_helpers.user_list(x),
                 "option_instruction": prompt_helpers.get_list_details(False),
             },
         ],
     )
-    args.user_list = list(answer["user_list"])
-    args.black_list = list(answer["black_list"])
+    args.userlist = list(answer["user_list"])
+    args.blacklist = list(answer["black_list"])
     return args
 
 
@@ -441,7 +452,6 @@ def reset_username_prompt() -> bool:
                 "message": "Do you want to reset username info",
                 "choices": [
                     Choice("Selection", "Yes Update Selection"),
-                    Choice("Data", "Yes Refetch Data Only"),
                     Choice("Selection_Strict", "Yes Update Selection (No Data Fetch)"),
                     "No",
                 ],

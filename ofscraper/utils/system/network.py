@@ -4,9 +4,9 @@ import traceback
 
 import httpx
 
-import ofscraper.classes.sessionmanager.sessionmanager as sessionManager
+import ofscraper.managers.sessionmanager.sessionmanager as sessionManager
 import ofscraper.utils.console as console_
-import ofscraper.utils.constants as constants
+import ofscraper.utils.of_env.of_env as of_env
 import ofscraper.utils.settings as settings
 
 
@@ -21,19 +21,14 @@ def check_cdm():
             "[yellow]WARNING:Make sure you have all the correct settings for choosen cdm\nhttps://of-scraper.gitbook.io/of-scraper/cdm-options\n\n[/yellow]"
         )
         return True
-    elif keymode == "keydb":
-        url = constants.getattr("KEYDB")
     elif keymode == "cdrm":
-        url = constants.getattr("CDRM")
-    elif keymode == "cdrm2":
-        url = constants.getattr("CDRM2")
+        url = of_env.getattr("CDRM")
     try:
         with sessionManager.sessionManager(
-           
-            total_timeout=constants.getattr("CDM_TEST_TIMEOUT"),
-            retries=constants.getattr("CDM_TEST_NUM_TRIES"),
-            wait_min=constants.getattr("CDM_MIN_WAIT"),
-            wait_max=constants.getattr("CDM_MAX_WAIT"),
+            total_timeout=of_env.getattr("CDM_TEST_TIMEOUT"),
+            retries=of_env.getattr("CDM_TEST_NUM_TRIES"),
+            wait_min=of_env.getattr("CDM_MIN_WAIT"),
+            wait_max=of_env.getattr("CDM_MAX_WAIT"),
         ) as c:
             with c.requests(url=url, headers={}) as r:
                 if r.ok:
